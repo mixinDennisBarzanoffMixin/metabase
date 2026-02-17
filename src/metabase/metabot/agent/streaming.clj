@@ -5,6 +5,7 @@
   (:require
    [buddy.core.codecs :as codecs]
    [metabase.metabot.agent.markdown-link-buffer :as markdown-link-buffer]
+   [metabase.metabot.tools.shared :as shared]
    [metabase.util.json :as json]))
 
 (set! *warn-on-reflection* true)
@@ -65,9 +66,10 @@
   This matches Python AI Service's:
   ai_sdk.create_data_part(data_type=AISDKDataTypes.NAVIGATE_TO, version=1, value=path)"
   [url]
-  {:type :data
-   :data-type navigate-to-type
-   :data url})
+  (when (not (shared/data-part-disabled? :navigate_to))
+    {:type :data
+     :data-type navigate-to-type
+     :data url}))
 
 (defn state-part
   "Create a STATE data part for streaming."
@@ -83,10 +85,11 @@
   This matches Python AI Service's:
   ai_sdk.create_data_part(data_type=AISDKDataTypes.TODO_LIST, version=1, value=todos)"
   [todos]
-  {:type :data
-   :data-type todo-list-type
-   :version 1
-   :data todos})
+  (when (not (shared/data-part-disabled? :todo_list))
+    {:type :data
+     :data-type todo-list-type
+     :version 1
+     :data todos}))
 
 (defn code-edit-part
   "Create a CODE_EDIT data part for streaming.
@@ -95,10 +98,11 @@
   This matches Python AI Service's:
   ai_sdk.create_data_part(data_type=AISDKDataTypes.CODE_EDIT, version=1, value=edit_data)"
   [edit-data]
-  {:type :data
-   :data-type code-edit-type
-   :version 1
-   :data edit-data})
+  (when (not (shared/data-part-disabled? :code_edit))
+    {:type :data
+     :data-type code-edit-type
+     :version 1
+     :data edit-data}))
 
 (defn transform-suggestion-part
   "Create a TRANSFORM_SUGGESTION data part for streaming.
@@ -107,10 +111,11 @@
   This matches Python AI Service's:
   ai_sdk.create_data_part(data_type=AISDKDataTypes.TRANSFORM_SUGGESTION, version=1, value=suggestion)"
   [suggestion]
-  {:type :data
-   :data-type transform-suggestion-type
-   :version 1
-   :data suggestion})
+  (when (not (shared/data-part-disabled? :transform_suggestion))
+    {:type :data
+     :data-type transform-suggestion-type
+     :version 1
+     :data suggestion}))
 
 (defn adhoc-viz-part
   "Create an ADHOC_VIZ data part for streaming.
