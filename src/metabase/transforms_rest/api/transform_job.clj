@@ -20,10 +20,12 @@
 (def ^:private ui-display-types [:cron/raw :cron/builder])
 
 (def ^:private LastRunResponse
-  "Schema for a job's last run information."
+  "Schema for a job's last run information.
+  `transform_job_run` is shared with DAG-reprocess runs, so rows carry these (nil-for-job-runs)
+  columns: `source_transform_id`, `direction`, `user_id`."
   [:map {:closed true}
    [:id pos-int?]
-   [:job_id pos-int?]
+   [:job_id [:maybe pos-int?]]
    [:run_method :keyword]
    [:status [:enum :started :succeeded :failed :timeout]]
    [:is_active [:maybe :boolean]]
@@ -31,7 +33,10 @@
    [:end_time {:optional true} [:maybe :any]]
    [:message [:maybe :string]]
    [:created_at :any]
-   [:updated_at :any]])
+   [:updated_at :any]
+   [:source_transform_id {:optional true} [:maybe pos-int?]]
+   [:direction {:optional true} [:maybe :keyword]]
+   [:user_id {:optional true} [:maybe pos-int?]]])
 
 (def ^:private NextRunResponse
   [:map {:closed true}
@@ -289,7 +294,7 @@
 (def ^:private JobRunResponse
   [:map {:closed true}
    [:id pos-int?]
-   [:job_id pos-int?]
+   [:job_id [:maybe pos-int?]]
    [:run_method :keyword]
    [:status [:enum :started :succeeded :failed :timeout]]
    [:is_active [:maybe :boolean]]
@@ -297,7 +302,11 @@
    [:end_time {:optional true} [:maybe :any]]
    [:message [:maybe :string]]
    [:created_at :any]
-   [:updated_at :any]])
+   [:updated_at :any]
+   ;; `transform_job_run` is shared with DAG-reprocess runs; these are nil for scheduled job runs.
+   [:source_transform_id {:optional true} [:maybe pos-int?]]
+   [:direction {:optional true} [:maybe :keyword]]
+   [:user_id {:optional true} [:maybe pos-int?]]])
 
 (def ^:private TransformRunForJobRunResponse
   [:map {:closed true}

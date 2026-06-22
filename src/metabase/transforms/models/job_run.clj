@@ -15,8 +15,9 @@
 (derive :model/TransformJobRun :hook/timestamped?)
 
 (t2/deftransforms :model/TransformJobRun
-  {:status mi/transform-keyword
-   :run_method mi/transform-keyword})
+  {:status     mi/transform-keyword
+   :run_method mi/transform-keyword
+   :direction  mi/transform-keyword})
 
 (defn- latest-runs-query [job-ids]
   {:with [[:ranked_runs
@@ -36,13 +37,24 @@
           (t2/reducible-select :model/TransformJobRun (latest-runs-query job-ids)))))
 
 (defn start-run!
-  "Start a run"
-  ([job-id run-method]
-   (t2/insert-returning-instance! :model/TransformJobRun
-                                  {:job_id job-id
-                                   :run_method run-method
-                                   :status :started
-                                   :is_active true})))
+  "Start a job run (triggered by a scheduled job)."
+  [job-id run-method]
+  (t2/insert-returning-instance! :model/TransformJobRun
+                                 {:job_id     job-id
+                                  :run_method run-method
+                                  :status     :started
+                                  :is_active  true}))
+
+(defn start-dag-run!
+  "Start a DAG-reprocess run (triggered manually from a single seed transform)."
+  [source-transform-id direction run-method user-id]
+  (t2/insert-returning-instance! :model/TransformJobRun
+                                 {:source_transform_id source-transform-id
+                                  :direction           (name direction)
+                                  :run_method          run-method
+                                  :status              :started
+                                  :is_active           true
+                                  :user_id             user-id}))
 
 (defn add-run-activity!
   "Notes that a run has had activity"
@@ -100,8 +112,15 @@
   "Return a single active job run or nil."
   [id]
   (t2/select-one :model/TransformJobRun
-                 :job_id id
+                 :job_id    id
                  :is_active true))
+
+(defn running-run-for-source-transform-id
+  "Return the single active DAG run for `source-transform-id`, or nil."
+  [source-transform-id]
+  (t2/select-one :model/TransformJobRun
+                 :source_transform_id source-transform-id
+                 :is_active           true))
 
 (defn paged-job-runs
   "Return a page of the list of job runs.
@@ -133,6 +152,30 @@
      :limit  limit
      :offset offset
      :total  (t2/count :model/TransformJobRun count-opts)}))
+
+(defn paged-dag-runs
+  "Return a page of DAG run history for `source-transform-id`."
+  [{:keys [source-transform-id offset limit sort-column sort-direction status]}]
+  (let [offset         (or offset 0)
+        limit          (or limit 20)
+        sort-direction (or (keyword sort-direction) :desc)
+        nulls-sort     (if (= sort-direction :asc) :nulls-last :nulls-first)
+        sort-column    (keyword (or sort-column :start_time))
+        order-by       (case sort-column
+                         :start_time [[sort-column sort-direction]]
+                         :end_time   [[sort-column sort-direction nulls-sort]]
+                         [[:start_time sort-direction]
+                          [:end_time   sort-direction nulls-sort]])
+        where-cond     (cond-> [[:= :source_transform_id source-transform-id]]
+                         status               (conj [:= :status status])
+                         (= status "started") (conj [:= :is_active true]))
+        where          (into [:and] where-cond)
+        query-opts     {:order-by order-by :offset offset :limit limit :where where}
+        runs           (t2/select :model/TransformJobRun query-opts)]
+    {:data   runs
+     :limit  limit
+     :offset offset
+     :total  (t2/count :model/TransformJobRun {:where where})}))
 
 (defn transform-runs-for-job-run
   "Return transform runs that were part of the given job run, ordered by start time."
