@@ -54,6 +54,32 @@
                                      transform-id-2])))
           ordering)))
 
+(defn- dependencies->plan
+  "Build an execution plan from a `dependencies` map (transform-id -> #{dep-ids}, as returned by
+  `transform-ordering`) and the transforms it covers. Returns `{:order [...transforms in execution
+  order] :deps dependencies}`. Throws if the dependency graph contains a cycle.
+
+  This is the pure, in-memory part of planning — no DB or `table-dependencies` work — so callers
+  that already hold a dependency map (e.g. a DAG reprocess that computed the whole graph once) can
+  build a plan without recomputing it."
+  [dependencies all-transforms]
+  (let [transforms-by-id (into {}
+                               (keep (fn [{:keys [id] :as transform}]
+                                       (when (contains? dependencies id)
+                                         [id transform])))
+                               all-transforms)
+        sorted-ord       (sorted-ordering dependencies transforms-by-id)]
+    (when-let [cycle (transforms-base.ordering/find-cycle sorted-ord)]
+      (let [id->name (into {} (map (juxt :id :name)) all-transforms)]
+        (throw (ex-info (str "Cyclic transform definitions detected: "
+                             (str/join " → " (map id->name cycle)))
+                        {:cycle cycle}))))
+    (loop [complete (ordered-set/ordered-set)]
+      (if-let [current-transform (next-transform sorted-ord transforms-by-id complete)]
+        (recur (conj complete (:id current-transform)))
+        {:order (map transforms-by-id complete)
+         :deps  dependencies}))))
+
 (defn- get-plan [transform-ids]
   (tracing/with-span :tasks "task.transform.plan" {:transform/count (count transform-ids)}
     (let [all-transforms (t2/select :model/Transform)
@@ -70,22 +96,7 @@
       (when (seq failed)
         (log/warnf "transform-ordering: %d transform(s) failed dep extraction; treated as leaves: %s"
                    (count failed) (pr-str (sort failed))))
-      (let [transforms-by-id (into {}
-                                   (keep (fn [{:keys [id] :as transform}]
-                                           (when (contains? dependencies id)
-                                             [id transform])))
-                                   all-transforms)
-            sorted-ord       (sorted-ordering dependencies transforms-by-id)]
-        (when-let [cycle (transforms-base.ordering/find-cycle sorted-ord)]
-          (let [id->name (into {} (map (juxt :id :name)) all-transforms)]
-            (throw (ex-info (str "Cyclic transform definitions detected: "
-                                 (str/join " → " (map id->name cycle)))
-                            {:cycle cycle}))))
-        (loop [complete (ordered-set/ordered-set)]
-          (if-let [current-transform (next-transform sorted-ord transforms-by-id complete)]
-            (recur (conj complete (:id current-transform)))
-            {:order (map transforms-by-id complete)
-             :deps  dependencies}))))))
+      (dependencies->plan dependencies all-transforms))))
 
 (defn- wait-for-transform-slot!
   "Poll until no active run exists for `transform-id`, up to `timeout-ms`."
@@ -338,11 +349,14 @@
   `:active-runs-atom` (default `active-runs`) is the atom that tracks coordinator liveness for heartbeating.
   `:add-run-activity!` is a zero-arg fn called after each successful transform execution to touch the
   coordinating run's `updated_at`.
+  `:precomputed-plan` is an optional `{:order ... :deps ...}` plan (as returned by [[get-plan]]). When
+  supplied it is used as-is instead of computing one from `transform-ids-to-run` — callers that already
+  built the dependency graph (e.g. DAG reprocess) pass it to avoid recomputing `table-dependencies`.
 
   Returns `{::status :succeeded}`, `{::status :failed ::failures [...]}`, or `{::status :aborted}`
   when the coordinating run was terminated externally (e.g. reaped) while this coordinator was still running."
   [run-id transform-ids-to-run {:keys [run-method start-promise user-id skip-fresh-deps?
-                                        run-key active-runs-atom add-run-activity!]
+                                        run-key active-runs-atom add-run-activity! precomputed-plan]
                                 :or   {skip-fresh-deps?  true
                                        run-key           :job-run-id
                                        active-runs-atom  active-runs
@@ -351,7 +365,7 @@
         _    (swap! active-runs-atom assoc run-id gone)
         final-state
         (try
-          (let [{plan :order deps :deps} (get-plan transform-ids-to-run)
+          (let [{plan :order deps :deps} (or precomputed-plan (get-plan transform-ids-to-run))
                 requested  (set transform-ids-to-run)
                 closure    (into #{} (map :id) plan)
                 ;; Only deps pulled into the plan (not directly requested) are freshness-gated. Seeding them
@@ -547,25 +561,38 @@
         (recur (into (rest queue) (get graph node)) (conj seen node)))
       seen)))
 
-(defn- dag-transform-ids
-  "Set of transform-ids to run for a DAG reprocess seeded at `seed-id`.
+(defn- dag-run-plan
+  "Compute, from a single dependency-graph walk, both the set of transform-ids a DAG reprocess
+  should run and the execution plan to run them. Returns `{:transform-ids #{...} :plan {:order ...
+  :deps ...}}`.
 
   `:upstream`   — seed + all transforms the seed transitively depends on. This is exactly the
-                  closure `transform-ordering` already walks from the seed, so we reuse it directly
-                  and avoid building the full graph.
-  `:downstream` — seed + all transforms that transitively depend on the seed. There is no
-                  downstream notion in the ordering code (it only walks toward dependencies), so we
-                  build the full forward graph once and reverse it."
+                  closure `transform-ordering` already walks from the seed, so the walk's
+                  `:dependencies` map is both the id set (its keys) and the plan input — one walk,
+                  no full graph.
+  `:downstream` — seed + all transforms that transitively depend on the seed. The ordering code only
+                  walks toward dependencies, so we build the full forward graph once, reverse it to
+                  find dependents, then restrict that same graph to the dependents' forward closure
+                  to build the plan — still a single `transform-ordering` call."
   [seed-id direction]
   (let [all-transforms (t2/select :model/Transform)]
     (case direction
-      :upstream   (set (keys (:dependencies (transforms-base.ordering/transform-ordering
-                                             #{seed-id} all-transforms))))
-      :downstream (-> (transforms-base.ordering/transform-ordering
-                       (into #{} (map :id) all-transforms) all-transforms)
-                      :dependencies
-                      dependents-graph
-                      (reachable seed-id)))))
+      :upstream
+      (let [{deps :dependencies} (transforms-base.ordering/transform-ordering #{seed-id} all-transforms)]
+        {:transform-ids (set (keys deps))
+         :plan          (dependencies->plan deps all-transforms)})
+
+      :downstream
+      (let [{full-deps :dependencies} (transforms-base.ordering/transform-ordering
+                                       (into #{} (map :id) all-transforms) all-transforms)
+            downstream-ids (reachable (dependents-graph full-deps) seed-id)
+            ;; The plan must include the downstream transforms plus their own upstream deps (needed
+            ;; for ordering), exactly as `get-plan` would pull them in — i.e. the forward closure of
+            ;; the downstream set. Restrict the already-computed graph to that closure.
+            closure        (reduce (fn [acc id] (into acc (reachable full-deps id))) #{} downstream-ids)
+            deps           (select-keys full-deps closure)]
+        {:transform-ids downstream-ids
+         :plan          (dependencies->plan deps all-transforms)}))))
 
 (defn run-dag!
   "Run all transforms in the dependency DAG rooted at `transform-id`.
@@ -581,7 +608,7 @@
                  :or   {skip-fresh-deps? false}}]
   (if (transforms.job-run/running-run-for-source-transform-id transform-id)
     (log/info "Not executing DAG run for transform" (pr-str transform-id) "because one is already running")
-    (let [transform-ids (dag-transform-ids transform-id direction)]
+    (let [{:keys [transform-ids plan]} (dag-run-plan transform-id direction)]
       (if (empty? transform-ids)
         (log/info "Skipping DAG run for transform" (pr-str transform-id) "because no transforms found in closure")
         (let [{run-id :id} (transforms.job-run/start-dag-run! transform-id direction run-method user-id)]
@@ -596,6 +623,7 @@
                                              :skip-fresh-deps?  skip-fresh-deps?
                                              :run-key           :job-run-id
                                              :active-runs-atom  active-runs
+                                             :precomputed-plan  plan
                                              :add-run-activity! #(transforms.job-run/add-run-activity! run-id)})]
                 (case (::status result)
                   :succeeded (transforms.job-run/succeed-started-run! run-id)
@@ -620,10 +648,7 @@
 
   `direction` controls which transforms are included (same as [[run-dag!]])."
   [transform-id direction]
-  (let [transform-ids (dag-transform-ids transform-id direction)
-        plan          (when (seq transform-ids)
-                        (:order (get-plan transform-ids)))]
-    (or plan [])))
+  (-> (dag-run-plan transform-id direction) :plan :order vec))
 
 ;;; ------------------------------------------- Orphan reaping -------------------------------------------
 
