@@ -88,6 +88,23 @@
                      {:status :failed
                       :is_active nil})))
 
+(defn cancel-started-run!
+  "Mark an active run as canceled. Returns the number of rows updated — 0 if the run had already
+  finished (the `is_active` guard means a completed run is never resurrected into a canceled state)."
+  [run-id]
+  (t2/update! :model/TransformJobRun
+              :id        run-id
+              :is_active true
+              {:status    :canceled
+               :is_active nil
+               :end_time  :%now
+               :message   "Canceled"}))
+
+(defn active-transform-run-ids-for-job-run
+  "Ids of the member transform runs of `job-run-id` that are still active."
+  [job-run-id]
+  (t2/select-pks-vec :model/TransformRun :job_run_id job-run-id :is_active true))
+
 (defn heartbeat-runs!
   "Stamp `last_heartbeat = now` on the given still-active job-run-ids."
   [run-ids]

@@ -327,7 +327,7 @@
    [:source_transform_id [:maybe pos-int?]]
    [:direction [:maybe :keyword]]
    [:run_method :keyword]
-   [:status [:enum :started :succeeded :failed :timeout]]
+   [:status [:enum :started :succeeded :failed :timeout :canceled]]
    [:is_active [:maybe :boolean]]
    [:start_time :any]
    [:end_time {:optional true} [:maybe :any]]
@@ -383,7 +383,7 @@
   "Get paginated DAG run history for a transform."
   [{:keys [id]} :- [:map [:id ms/PositiveInt]]
    query-params :- [:map
-                    [:status {:optional true} [:maybe [:enum "started" "succeeded" "failed" "timeout"]]]
+                    [:status {:optional true} [:maybe [:enum "started" "succeeded" "failed" "timeout" "canceled"]]]
                     [:sort-column {:optional true} [:maybe [:enum "start_time" "end_time"]]]
                     [:sort-direction {:optional true} [:maybe [:enum "asc" "desc"]]]]]
   (api/read-check :model/Transform id)

@@ -60,6 +60,7 @@
   run-job!
   job-transforms
   run-dag!
+  cancel-dag-run!
   dag-run-transforms]
  [metabase.transforms.schedule
   validate-cron-expression
