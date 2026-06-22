@@ -377,9 +377,9 @@
   "Cancel an in-progress manual DAG run and request cancellation of its still-running transforms."
   [{:keys [run-id]} :- [:map [:run-id ms/PositiveInt]]]
   (api/check-data-analyst)
-  (let [run (api/check-404 (t2/select-one :model/TransformJobRun
-                                          :id run-id
-                                          [:not= :source_transform_id nil]))]
+  (let [run (api/check-404 (t2/select-one :model/TransformJobRun :id run-id))]
+    ;; only manual DAG runs (seeded from a transform) are cancelable here, not scheduled job runs
+    (api/check-404 (:source_transform_id run))
     (api/check-400 (transforms.core/cancel-dag-run! (:id run))))
   nil)
 
