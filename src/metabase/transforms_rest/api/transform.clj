@@ -363,6 +363,18 @@
     {:job_run_id nil
      :message    (deferred-tru "DAG run started")}))
 
+(api.macros/defendpoint :get "/:id/dag-transforms" :- [:sequential [:map {:closed true}
+                                                                     [:id pos-int?]
+                                                                     [:name :string]]]
+  "Preview the transforms a DAG reprocess from this transform would run, in execution order.
+  Used to populate the confirmation dialog before triggering [[run-dag!]] via `POST /:id/run-dag`."
+  [{:keys [id]} :- [:map [:id ms/PositiveInt]]
+   {:keys [direction]} :- [:map [:direction (ms/enum-decode-keyword dag-directions)]]]
+  (api/read-check :model/Transform id)
+  (mapv (fn [{xform-id :id, xform-name :name}]
+          {:id xform-id, :name xform-name})
+        (transforms.core/dag-run-transforms id direction)))
+
 (api.macros/defendpoint :get "/:id/dag-runs" :- [:map {:closed true}
                                                   [:data [:sequential DagRunResponse]]
                                                   [:limit pos-int?]

@@ -77,6 +77,7 @@
  [metabase.transforms.models.job-run
   paged-job-runs
   paged-dag-runs
+  paged-all-dag-runs
   transform-runs-for-job-run
   running-run-for-source-transform-id]
  [metabase.transforms.models.transform-run-cancelation

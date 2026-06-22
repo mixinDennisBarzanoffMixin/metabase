@@ -328,6 +328,52 @@
    [:checkpoint_lo_value {:optional true} [:maybe :string]]
    [:checkpoint_hi_value {:optional true} [:maybe :string]]])
 
+(def ^:private DagRunResponse
+  [:map {:closed true}
+   [:id pos-int?]
+   [:job_id [:maybe pos-int?]]
+   [:source_transform_id [:maybe pos-int?]]
+   [:direction [:maybe :keyword]]
+   [:run_method :keyword]
+   [:status [:enum :started :succeeded :failed :timeout]]
+   [:is_active [:maybe :boolean]]
+   [:start_time :any]
+   [:end_time {:optional true} [:maybe :any]]
+   [:message [:maybe :string]]
+   [:user_id [:maybe pos-int?]]
+   [:created_at :any]
+   [:updated_at :any]
+   [:transform_name {:optional true} [:maybe :string]]])
+
+(api.macros/defendpoint :get "/dag-runs" :- [:map {:closed true}
+                                             [:data [:sequential DagRunResponse]]
+                                             [:limit pos-int?]
+                                             [:offset :int]
+                                             [:total :int]]
+  "Get paginated run history for all manual DAG-reprocess runs across transforms. Backs the
+  synthetic \"Manual DAG runs\" entry in the jobs list. Each row's seed transform name is hydrated
+  as `transform_name`."
+  [_route-params
+   query-params :- [:map
+                    [:status {:optional true} [:maybe [:enum "started" "succeeded" "failed" "timeout"]]]
+                    [:run-method {:optional true} [:maybe [:enum "manual" "cron"]]]
+                    [:start-time {:optional true} [:maybe ms/NonBlankString]]
+                    [:sort-column {:optional true} [:maybe [:enum "start_time" "end_time"]]]
+                    [:sort-direction {:optional true} [:maybe [:enum "asc" "desc"]]]]]
+  (api/check-data-analyst)
+  (-> (transforms.core/paged-all-dag-runs (assoc query-params
+                                                 :offset (request/offset)
+                                                 :limit  (request/limit)))
+      (update :data
+              (fn [runs]
+                (let [id->name (when-let [ids (seq (keep :source_transform_id runs))]
+                                 (t2/select-pk->fn :name :model/Transform :id [:in ids]))]
+                  (mapv (fn [run]
+                          (-> run
+                              transforms-base.u/present-run
+                              (assoc :transform_name (get id->name (:source_transform_id run)))))
+                        runs))))))
+
 (api.macros/defendpoint :get "/:job-id/runs" :- [:map {:closed true}
                                                  [:data [:sequential JobRunResponse]]
                                                  [:limit pos-int?]

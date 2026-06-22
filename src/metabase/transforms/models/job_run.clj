@@ -177,6 +177,34 @@
      :offset offset
      :total  (t2/count :model/TransformJobRun {:where where})}))
 
+(defn paged-all-dag-runs
+  "Return a page of all manual DAG-reprocess runs across every transform — the rows where
+  `source_transform_id` is set (as opposed to scheduled job runs, which set `job_id`).
+  Mirrors [[paged-job-runs]] but scoped to DAG runs and not filtered to a single job/transform."
+  [{:keys [offset limit sort-column sort-direction status run-method start-time]}]
+  (let [offset         (or offset 0)
+        limit          (or limit 20)
+        sort-direction (or (keyword sort-direction) :desc)
+        nulls-sort     (if (= sort-direction :asc) :nulls-last :nulls-first)
+        sort-column    (keyword (or sort-column :start_time))
+        order-by       (case sort-column
+                         :start_time [[sort-column sort-direction]]
+                         :end_time   [[sort-column sort-direction nulls-sort]]
+                         [[:start_time sort-direction]
+                          [:end_time   sort-direction nulls-sort]])
+        where-cond     (cond-> [[:not= :source_transform_id nil]]
+                         status               (conj [:= :status status])
+                         (= status "started") (conj [:= :is_active true])
+                         run-method           (conj [:= :run_method run-method])
+                         start-time           (conj (transforms.models.u/timestamp-constraint :start_time start-time)))
+        where          (into [:and] where-cond)
+        query-opts     {:order-by order-by :offset offset :limit limit :where where}
+        runs           (t2/select :model/TransformJobRun query-opts)]
+    {:data   runs
+     :limit  limit
+     :offset offset
+     :total  (t2/count :model/TransformJobRun {:where where})}))
+
 (defn transform-runs-for-job-run
   "Return transform runs that were part of the given job run, ordered by start time."
   [job-run-id]
