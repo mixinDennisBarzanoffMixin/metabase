@@ -569,11 +569,14 @@
   `:upstream`   — seed + all transforms the seed transitively depends on. This is exactly the
                   closure `transform-ordering` already walks from the seed, so the walk's
                   `:dependencies` map is both the id set (its keys) and the plan input — one walk,
-                  no full graph.
+                  no full graph. The whole closure runs.
   `:downstream` — seed + all transforms that transitively depend on the seed. The ordering code only
-                  walks toward dependencies, so we build the full forward graph once, reverse it to
-                  find dependents, then restrict that same graph to the dependents' forward closure
-                  to build the plan — still a single `transform-ordering` call."
+                  walks toward dependencies, so we build the full forward graph once and reverse it
+                  to find dependents. Only the downstream set runs — the dependents' *other* upstream
+                  inputs are already-materialized tables and must NOT be reprocessed, so we keep only
+                  the dependency edges that stay within the downstream set. Dropping the external
+                  edges preserves ordering (the seed still runs before anything that depends on it)
+                  while leaving those inputs untouched."
   [seed-id direction]
   (let [all-transforms (t2/select :model/Transform)]
     (case direction
@@ -586,11 +589,10 @@
       (let [{full-deps :dependencies} (transforms-base.ordering/transform-ordering
                                        (into #{} (map :id) all-transforms) all-transforms)
             downstream-ids (reachable (dependents-graph full-deps) seed-id)
-            ;; The plan must include the downstream transforms plus their own upstream deps (needed
-            ;; for ordering), exactly as `get-plan` would pull them in — i.e. the forward closure of
-            ;; the downstream set. Restrict the already-computed graph to that closure.
-            closure        (reduce (fn [acc id] (into acc (reachable full-deps id))) #{} downstream-ids)
-            deps           (select-keys full-deps closure)]
+            deps           (into {}
+                                 (map (fn [id]
+                                        [id (set/intersection (get full-deps id #{}) downstream-ids)]))
+                                 downstream-ids)]
         {:transform-ids downstream-ids
          :plan          (dependencies->plan deps all-transforms)}))))
 

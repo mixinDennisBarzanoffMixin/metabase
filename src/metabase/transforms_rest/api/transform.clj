@@ -338,7 +338,7 @@
 
 (api.macros/defendpoint :post "/:id/run-dag" :- [:map {:closed true}
                                                   [:job_run_id [:maybe pos-int?]]
-                                                  [:message :string]]
+                                                  [:message :any]]
   "Trigger a DAG reprocess run starting from a single transform. Runs the transform and all
   transforms in its transitive dependency closure (direction controls which side of the DAG).
 
