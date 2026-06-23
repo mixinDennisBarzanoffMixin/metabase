@@ -16,7 +16,19 @@ import {
   createMockTokenStatus,
 } from "metabase-types/api/mocks";
 
-import { StoragePurchaseModal } from "./StoragePurchaseModal";
+import { StorageSetupProvider, useStorageSetup } from "./storage-setup-context";
+
+const TestConsumer = () => {
+  const { isSettingUp, isReady, handlePurchase } = useStorageSetup();
+
+  return (
+    <div>
+      <button onClick={handlePurchase}>Add storage</button>
+      {isSettingUp && <span>setting up</span>}
+      {isReady && <span>ready</span>}
+    </div>
+  );
+};
 
 interface SetupOpts {
   tokenFeatures?: Partial<TokenFeatures>;
@@ -24,8 +36,6 @@ interface SetupOpts {
 }
 
 const setup = ({ tokenFeatures = {}, uploadDbId = null }: SetupOpts = {}) => {
-  const onClose = jest.fn();
-
   const settingValues = {
     "token-features": createMockTokenFeatures(tokenFeatures),
     "uploads-settings": {
@@ -56,44 +66,28 @@ const setup = ({ tokenFeatures = {}, uploadDbId = null }: SetupOpts = {}) => {
     createMockTokenStatus(),
   );
 
-  renderWithProviders(<StoragePurchaseModal opened onClose={onClose} />, {
-    storeInitialState: createMockState({
-      settings: mockSettings(settingValues),
-    }),
-  });
-
-  return { onClose };
+  renderWithProviders(
+    <StorageSetupProvider>
+      <TestConsumer />
+    </StorageSetupProvider>,
+    {
+      storeInitialState: createMockState({
+        settings: mockSettings(settingValues),
+      }),
+    },
+  );
 };
 
 const clickAddStorage = () =>
   userEvent.click(screen.getByRole("button", { name: "Add storage" }));
 
-describe("StoragePurchaseModal", () => {
-  it("renders the minimal purchase layout with the disclaimer", () => {
-    setup();
-
-    expect(
-      screen.getByText(
-        "Get a fully managed data warehouse. Upload CSV files and sync with Google Sheets.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /You will not be charged until you reach 1M stored rows/,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Add storage" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
-  });
-
-  it("purchases the add-on and transitions to the setting-up state", async () => {
+describe("StorageSetupProvider", () => {
+  it("purchases the add-on and enters the setting-up state", async () => {
     setup();
 
     await clickAddStorage();
 
-    expect(await screen.findByText("Setting up storage")).toBeInTheDocument();
+    expect(await screen.findByText("setting up")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(
@@ -109,10 +103,10 @@ describe("StoragePurchaseModal", () => {
 
     await clickAddStorage();
 
-    expect(await screen.findByText("Setting up storage")).toBeInTheDocument();
+    expect(await screen.findByText("setting up")).toBeInTheDocument();
 
     // The hook polls the databases list (in addition to settings) so the
-    // surrounding UI can react without a page reload.
+    // surrounding panels can react without a page reload.
     await waitFor(
       () => {
         expect(
@@ -128,11 +122,11 @@ describe("StoragePurchaseModal", () => {
 
     await clickAddStorage();
 
-    expect(await screen.findByText("Setting up storage")).toBeInTheDocument();
-    expect(screen.queryByText("Storage is ready")).not.toBeInTheDocument();
+    expect(await screen.findByText("setting up")).toBeInTheDocument();
+    expect(screen.queryByText("ready")).not.toBeInTheDocument();
   });
 
-  it("shows the ready state once storage is attached and the upload database is available", async () => {
+  it("leaves the setting-up state once storage is attached and the upload database is available", async () => {
     setup({
       tokenFeatures: { attached_dwh: true },
       uploadDbId: 1,
@@ -140,7 +134,10 @@ describe("StoragePurchaseModal", () => {
 
     await clickAddStorage();
 
-    expect(await screen.findByText("Storage is ready")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+    // Once storage is ready the provider resets back to `initial`, so the
+    // setting-up flag clears and hosting panels reveal their default view.
+    await waitFor(() => {
+      expect(screen.queryByText("setting up")).not.toBeInTheDocument();
+    });
   });
 });

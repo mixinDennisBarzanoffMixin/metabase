@@ -4,6 +4,10 @@ import { match } from "ts-pattern";
 import { t } from "ttag";
 
 import { skipToken } from "metabase/api";
+import {
+  StorageSetupView,
+  useStorageSetup,
+} from "metabase/common/components/upsells/StoragePurchaseModal";
 import { UpsellStorage } from "metabase/common/components/upsells/UpsellStorage";
 import { useHasTokenFeature, useStoreUrl } from "metabase/common/hooks";
 import {
@@ -137,6 +141,7 @@ export const GdriveAddDataPanel = ({
 
   const isAdmin = useSelector(getUserIsAdmin);
   const hasStorage = useHasTokenFeature("attached_dwh");
+  const { isSettingUp } = useStorageSetup();
   const storeUrl = useStoreUrl("account/storage");
 
   const showGdrive = useShowGdrive();
@@ -162,6 +167,10 @@ export const GdriveAddDataPanel = ({
   }
 
   if (!hasStorage) {
+    if (isSettingUp) {
+      return <StorageSetupView />;
+    }
+
     return (
       <PanelWrapper subtitle={NO_STORAGE_SUBTITLE}>
         <UpsellStorage location="add-data-modal-sheets" />

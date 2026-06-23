@@ -16,6 +16,7 @@ import {
 } from "metabase-types/api/mocks";
 import { mockStorageCloudAddOn } from "metabase-types/api/mocks/add-ons";
 
+import { StorageSetupProvider } from "./StoragePurchaseModal";
 import { UpsellStorage } from "./UpsellStorage";
 
 interface SetupOpts {
@@ -47,9 +48,12 @@ const setup = ({
     settings: mockSettings(settingValues),
   });
 
-  renderWithProviders(<UpsellStorage location="add-data-modal-csv" />, {
-    storeInitialState: state,
-  });
+  renderWithProviders(
+    <StorageSetupProvider>
+      <UpsellStorage location="add-data-modal-csv" />
+    </StorageSetupProvider>,
+    { storeInitialState: state },
+  );
 };
 
 describe("UpsellStorage", () => {
@@ -69,24 +73,20 @@ describe("UpsellStorage", () => {
     expect(screen.queryByTestId("upsell-banner")).not.toBeInTheDocument();
   });
 
-  it("opens the in-app purchase popup when the storage add-on is purchasable", async () => {
+  it("shows the charge disclaimer inline when the add-on is purchasable", async () => {
     setup();
-
-    await userEvent.click(await screen.findByRole("button", { name: "Add" }));
 
     expect(
       await screen.findByText(
-        "Get a fully managed data warehouse. Upload CSV files and sync with Google Sheets.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
         /You will not be charged until you reach 1M stored rows/,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
 
-    await userEvent.click(screen.getByRole("button", { name: "Add storage" }));
+  it("triggers the purchase directly when the storage add-on is purchasable", async () => {
+    setup();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Add" }));
 
     await waitFor(() => {
       expect(
@@ -105,5 +105,10 @@ describe("UpsellStorage", () => {
       "href",
       expect.stringContaining("/account/storage"),
     );
+    expect(
+      screen.queryByText(
+        /You will not be charged until you reach 1M stored rows/,
+      ),
+    ).not.toBeInTheDocument();
   });
 });

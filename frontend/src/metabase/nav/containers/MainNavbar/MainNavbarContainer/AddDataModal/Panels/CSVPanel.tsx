@@ -1,5 +1,9 @@
 import { t } from "ttag";
 
+import {
+  StorageSetupView,
+  useStorageSetup,
+} from "metabase/common/components/upsells/StoragePurchaseModal";
 import { UpsellStorage } from "metabase/common/components/upsells/UpsellStorage";
 import * as Urls from "metabase/urls";
 
@@ -19,6 +23,8 @@ export const CSVPanel = ({
   onCloseAddDataModal,
   uploadsEnabled,
 }: CSVPanelProps) => {
+  const { isSettingUp } = useStorageSetup();
+
   const showObtainPermissionPrompt = uploadsEnabled && !canUpload;
 
   const showEnableUploadsCTA = !uploadsEnabled && canManageUploads;
@@ -32,6 +38,10 @@ export const CSVPanel = ({
     return (
       <CSVPanelEmptyState contactAdminReason="obtain-csv-upload-permission" />
     );
+  }
+
+  if (isSettingUp) {
+    return <StorageSetupView />;
   }
 
   if (showEnableUploadsCTA) {

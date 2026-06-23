@@ -20,8 +20,7 @@ export function usePurchaseStorageAddOn() {
   // reference it when configuring the queries — we reconcile it during render.
   const [isPolling, setIsPolling] = useState(false);
   const { sendErrorToast } = useMetadataToasts();
-  const [purchaseCloudAddOn, { isLoading: isPurchasing }] =
-    usePurchaseCloudAddOnMutation();
+  const [purchaseCloudAddOn] = usePurchaseCloudAddOnMutation();
 
   const hasStorage = useHasTokenFeature("attached_dwh");
   const uploadDbId = useSetting("uploads-settings")?.db_id;
@@ -34,13 +33,12 @@ export function usePurchaseStorageAddOn() {
 
   // Reload both data sources the surrounding UI depends on: `uploads-settings`
   // (session properties) and the databases list.
-  const { isFetching: isFetchingSettings } = useGetSettingsQuery(undefined, {
+  useGetSettingsQuery(undefined, {
     pollingInterval: isPolling ? POLL_INTERVAL_MS : 0,
   });
-  const { isFetching: isFetchingDatabases, data: databasesResponse } =
-    useListDatabasesQuery(undefined, {
-      pollingInterval: isPolling ? POLL_INTERVAL_MS : 0,
-    });
+  const { data: databasesResponse } = useListDatabasesQuery(undefined, {
+    pollingInterval: isPolling ? POLL_INTERVAL_MS : 0,
+  });
 
   // Storage is only ready once the upload database has actually surfaced in the
   // databases list and accepts uploads — not merely when the token feature flips.
@@ -52,8 +50,6 @@ export function usePurchaseStorageAddOn() {
   if (isPolling !== shouldPoll) {
     setIsPolling(shouldPoll);
   }
-
-  const isReloading = shouldPoll || isFetchingSettings || isFetchingDatabases;
 
   const handlePurchase = useCallback(async () => {
     setState("settingUp");
@@ -70,11 +66,8 @@ export function usePurchaseStorageAddOn() {
   const reset = useCallback(() => setState("initial"), []);
 
   return {
-    state,
     isSettingUp,
-    isPurchasing,
     isReady,
-    isReloading,
     handlePurchase,
     reset,
   };

@@ -121,7 +121,7 @@ const AddDataEmptyState = ({
   upsell,
 }: EmptyStateProps) => {
   return (
-    <Stack gap="lg" align="center" justify="center" pt="2.5rem">
+    <Stack gap="md" align="center" justify="center">
       {illustration}
       <Box component="header" ta="center" maw={CONTENT_MAX_WIDTH}>
         <Title order={2} size="h4" mb="xs">
@@ -201,7 +201,7 @@ export const CSVPanelEmptyState = ({
     <AddDataEmptyState
       title={t`Upload CSV files`}
       subtitle={subtitle}
-      illustration={<Box component={IconCSV} c="core-brand" h={66} />}
+      illustration={<Box component={IconCSV} c="core-brand" h={48} />}
       contactAdminReason={contactAdminReason}
       ctaLink={ctaLink}
       upsell={upsell}

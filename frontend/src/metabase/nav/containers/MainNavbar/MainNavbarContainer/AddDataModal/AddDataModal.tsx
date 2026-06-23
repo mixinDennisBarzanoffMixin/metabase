@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { t } from "ttag";
 
 import { useListDatabasesQuery } from "metabase/api";
+import { StorageSetupProvider } from "metabase/common/components/upsells/StoragePurchaseModal";
 import { useSetting } from "metabase/common/hooks";
 import CS from "metabase/css/core/index.css";
 import { PLUGIN_UPLOAD_MANAGEMENT } from "metabase/plugins";
@@ -106,68 +107,72 @@ export const AddDataModal = ({
   }, [tabs, initialTab]);
 
   return (
-    <Modal.Root opened={opened} onClose={onClose} size="auto">
-      <Modal.Overlay />
-      <Modal.Content h="30rem">
-        <Tabs
-          value={activeTab}
-          onChange={handleTabChange}
-          variant="none"
-          orientation="vertical"
-          classNames={{
-            list: S.list,
-            tab: S.tab,
-            tabLabel: S.tabLabel,
-          }}
-          h="100%"
-        >
-          <Box component="nav" w="14rem" className={CS.borderRight}>
-            <Box component="header" className={S.header}>
-              <Modal.Title fz="lg">{t`Add data`}</Modal.Title>
+    // The provider sits outside `Modal.Root` so the storage setup state and its
+    // polling survive the modal being closed and reopened.
+    <StorageSetupProvider>
+      <Modal.Root opened={opened} onClose={onClose} size="auto">
+        <Modal.Overlay />
+        <Modal.Content h="30rem">
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            variant="none"
+            orientation="vertical"
+            classNames={{
+              list: S.list,
+              tab: S.tab,
+              tabLabel: S.tabLabel,
+            }}
+            h="100%"
+          >
+            <Box component="nav" w="14rem" className={CS.borderRight}>
+              <Box component="header" className={S.header}>
+                <Modal.Title fz="lg">{t`Add data`}</Modal.Title>
+              </Box>
+              <Tabs.List px="md" pb="lg">
+                {tabs
+                  .filter((tab) => tab.isVisible)
+                  .map((tab) => (
+                    <Tabs.Tab
+                      key={tab.value}
+                      value={tab.value}
+                      leftSection={<Icon name={tab.iconName} />}
+                    >
+                      {tab.name}
+                    </Tabs.Tab>
+                  ))}
+              </Tabs.List>
             </Box>
-            <Tabs.List px="md" pb="lg">
-              {tabs
-                .filter((tab) => tab.isVisible)
-                .map((tab) => (
-                  <Tabs.Tab
-                    key={tab.value}
-                    value={tab.value}
-                    leftSection={<Icon name={tab.iconName} />}
-                  >
-                    {tab.name}
-                  </Tabs.Tab>
-                ))}
-            </Tabs.List>
-          </Box>
-          <Box component="main" w="30rem" className={S.panelContainer}>
-            <PanelsHeader
-              showDatabasesLink={activeTab === "db" && isAdmin}
-              showUploadsLink={activeTab === "csv" && canManageUploads}
-              showManageImports={activeTab === "gsheets" && isAdmin}
-              onAddDataModalClose={onClose}
-            />
-            <Tabs.Panel value="csv" className={S.panel}>
-              <CSVPanel
-                onCloseAddDataModal={onClose}
-                uploadsEnabled={areUploadsEnabled}
-                canUpload={canUploadToDatabase}
-                canManageUploads={canManageUploads}
-              />
-            </Tabs.Panel>
-            <Tabs.Panel value="db" className={S.panel}>
-              <DatabasesPanel
-                canSeeContent={isAdmin}
-                fromEmbeddingSetupGuide={fromEmbeddingSetupGuide}
-              />
-            </Tabs.Panel>
-            <Tabs.Panel value="gsheets" className={S.panel}>
-              <PLUGIN_UPLOAD_MANAGEMENT.GdriveAddDataPanel
+            <Box component="main" w="30rem" className={S.panelContainer}>
+              <PanelsHeader
+                showDatabasesLink={activeTab === "db" && isAdmin}
+                showUploadsLink={activeTab === "csv" && canManageUploads}
+                showManageImports={activeTab === "gsheets" && isAdmin}
                 onAddDataModalClose={onClose}
               />
-            </Tabs.Panel>
-          </Box>
-        </Tabs>
-      </Modal.Content>
-    </Modal.Root>
+              <Tabs.Panel value="csv" className={S.panel}>
+                <CSVPanel
+                  onCloseAddDataModal={onClose}
+                  uploadsEnabled={areUploadsEnabled}
+                  canUpload={canUploadToDatabase}
+                  canManageUploads={canManageUploads}
+                />
+              </Tabs.Panel>
+              <Tabs.Panel value="db" className={S.panel}>
+                <DatabasesPanel
+                  canSeeContent={isAdmin}
+                  fromEmbeddingSetupGuide={fromEmbeddingSetupGuide}
+                />
+              </Tabs.Panel>
+              <Tabs.Panel value="gsheets" className={S.panel}>
+                <PLUGIN_UPLOAD_MANAGEMENT.GdriveAddDataPanel
+                  onAddDataModalClose={onClose}
+                />
+              </Tabs.Panel>
+            </Box>
+          </Tabs>
+        </Modal.Content>
+      </Modal.Root>
+    </StorageSetupProvider>
   );
 };

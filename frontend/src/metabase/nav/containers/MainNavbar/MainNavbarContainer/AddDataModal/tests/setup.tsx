@@ -1,3 +1,5 @@
+import fetchMock from "fetch-mock";
+
 import { setupEnterpriseOnlyPlugin } from "__support__/enterprise";
 import {
   setupCollectionByIdEndpoint,
@@ -5,6 +7,7 @@ import {
   setupGdriveGetFolderEndpoint,
   setupGdrivePostFolderEndpoint,
   setupGdriveServiceAccountEndpoint,
+  setupPropertiesEndpoints,
   setupTokenStatusEndpoint,
 } from "__support__/server-mocks";
 import { mockSettings } from "__support__/settings";
@@ -16,6 +19,7 @@ import type { GdrivePayload, TokenFeatures } from "metabase-types/api";
 import {
   createMockCollection,
   createMockDatabase,
+  createMockSettings,
   createMockTokenFeatures,
   createMockUser,
 } from "metabase-types/api/mocks";
@@ -74,25 +78,29 @@ export const setup = ({
   const collections = [rootCollection];
   const databases = [database];
 
+  const settingValues = {
+    "admin-email": adminEmail,
+    "is-hosted?": isHosted,
+    "show-google-sheets-integration": enableGoogleSheets,
+    "token-features": createMockTokenFeatures(tokenFeatures),
+    "uploads-settings": {
+      db_id: uploadsEnabled ? database.id : null,
+      schema_name: "uploads",
+      table_prefix: "uploaded_",
+    },
+    "store-url": "https://store.metabase.com",
+  };
+
   const state = createMockState({
     currentUser: createMockUser(user),
     entities: createMockEntitiesState({
       databases,
       collections,
     }),
-    settings: mockSettings({
-      "admin-email": adminEmail,
-      "is-hosted?": isHosted,
-      "show-google-sheets-integration": enableGoogleSheets,
-      "token-features": createMockTokenFeatures(tokenFeatures),
-      "uploads-settings": {
-        db_id: uploadsEnabled ? database.id : null,
-        schema_name: "uploads",
-        table_prefix: "uploaded_",
-      },
-      "store-url": "https://store.metabase.com",
-    }),
+    settings: mockSettings(settingValues),
   });
+
+  setupPropertiesEndpoints(createMockSettings(settingValues));
 
   if (enterprisePlugins) {
     enterprisePlugins.forEach((plugin) => {
@@ -103,6 +111,8 @@ export const setup = ({
 
   setupDatabaseListEndpoint(databases);
   setupCollectionByIdEndpoint({ collections });
+  // The storage upsell (shown on hosted instances) checks add-on availability.
+  fetchMock.get("path:/api/ee/cloud-add-ons/addons", []);
 
   if (enableGoogleSheets) {
     setupGdrivePostFolderEndpoint();
