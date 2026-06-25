@@ -2880,6 +2880,8 @@
                     :model/Dashboard
                     :model/Database
                     :model/Field
+                    :model/McpSessionLog
+                    :model/McpToolCallLog
                     :model/Notification
                     :model/NotificationRecipient
                     :model/Permissions
