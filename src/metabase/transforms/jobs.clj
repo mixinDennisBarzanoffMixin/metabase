@@ -83,13 +83,13 @@
 
 (defn- get-plan [transform-ids]
   (tracing/with-span :tasks "task.transform.plan" {:transform/count (count transform-ids)}
-    (let [all-transforms (t2/select :model/Transform)
+    (let [all-transforms (t2/select [:model/Transform :id :target :target_table_id :created_at :table_dependencies])
           ;; Walk only the dependency closure of the transforms we're asked to run.
           ;; `table-dependencies` (and the QP preprocessing it triggers) is therefore called
           ;; only on transforms in that closure — never on unrelated transforms elsewhere in
           ;; the system. This is what prevents a single broken transform (e.g. one on a
           ;; routing-enabled database) from poisoning the scheduler when no job has asked for it.
-          {:keys [dependencies not-found failed]}
+          {:keys [dependencies not-found failed uncached]}
           (transforms-base.ordering/transform-ordering transform-ids all-transforms)]
       (when (seq not-found)
         (log/warnf "transform-ordering: %d scheduled id(s) not found in transforms (likely deleted between scheduling and lookup): %s"
@@ -97,7 +97,13 @@
       (when (seq failed)
         (log/warnf "transform-ordering: %d transform(s) failed dep extraction; treated as leaves: %s"
                    (count failed) (pr-str (sort failed))))
-      (dependencies->plan dependencies all-transforms))))
+      ;; Lazily backfill the table_dependencies column for any closure transform we had to compute live.
+      (transforms-base.ordering/persist-table-dependencies! uncached)
+      ;; Fetch full rows only for the closure, which is what callers actually consume.
+      (let [closure-transforms (if (seq dependencies)
+                                 (t2/select :model/Transform :id [:in (keys dependencies)])
+                                 [])]
+        (dependencies->plan dependencies closure-transforms)))))
 
 (defn- wait-for-transform-slot!
   "Poll until no active run exists for `transform-id`, up to `timeout-ms`."
