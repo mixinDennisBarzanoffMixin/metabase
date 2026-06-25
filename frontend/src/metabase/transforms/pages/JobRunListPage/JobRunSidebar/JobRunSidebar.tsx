@@ -109,7 +109,9 @@ export const JobRunSidebar = memo(function JobRunSidebar({
           <JobRunSidebarHeader
             title={isDagRun ? t`DAG run` : t`Job run`}
             onCancel={
-              onCancel != null && run.status === "started" ? onCancel : undefined
+              onCancel != null && run.status === "started"
+                ? onCancel
+                : undefined
             }
             onClose={onClose}
           />

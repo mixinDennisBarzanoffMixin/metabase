@@ -5,10 +5,7 @@ import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { replace } from "react-router-redux";
 import { t } from "ttag";
 
-import {
-  useCancelDagRunMutation,
-  useListAllDagRunsQuery,
-} from "metabase/api";
+import { useCancelDagRunMutation, useListAllDagRunsQuery } from "metabase/api";
 import { ConfirmModal } from "metabase/common/components/ConfirmModal";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
 import { PaginationControls } from "metabase/common/components/PaginationControls";
@@ -57,8 +54,10 @@ export function DagRunListPage({ location }: DagRunListPageProps) {
     TransformJobRunId | undefined
   >();
   const [isPolling, setIsPolling] = useState(false);
-  const [isCancelModalOpen, { open: openCancelModal, close: closeCancelModal }] =
-    useDisclosure();
+  const [
+    isCancelModalOpen,
+    { open: openCancelModal, close: closeCancelModal },
+  ] = useDisclosure();
   const dispatch = useDispatch();
   const [cancelDagRun] = useCancelDagRunMutation();
   const { sendErrorToast, sendSuccessToast } = useMetadataToasts();

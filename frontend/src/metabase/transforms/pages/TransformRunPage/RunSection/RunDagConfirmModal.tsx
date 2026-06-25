@@ -37,7 +37,12 @@ export function RunDagConfirmModal({
       : t`Run this and all downstream transforms?`;
 
   return (
-    <Modal opened={direction != null} title={title} padding="xl" onClose={onClose}>
+    <Modal
+      opened={direction != null}
+      title={title}
+      padding="xl"
+      onClose={onClose}
+    >
       <Stack gap="lg">
         <Text>{t`Here are the transforms that will be run, in this order:`}</Text>
         {isFetching ? (

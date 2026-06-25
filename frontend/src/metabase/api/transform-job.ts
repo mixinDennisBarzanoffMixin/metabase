@@ -52,28 +52,26 @@ export const transformJobApi = Api.injectEndpoints({
         ...provideTransformListTags(transforms),
       ],
     }),
-    listAllDagRuns: builder.query<ListAllDagRunsResponse, ListAllDagRunsRequest>(
-      {
-        query: (params) => ({
-          method: "GET",
-          url: "/api/transform-job/dag-runs",
-          params,
-        }),
-        // DAG runs live in the same store as job runs and are seeded from transforms,
-        // so invalidate this list whenever any transform or transform-run changes.
-        providesTags: () => [listTag("transform"), listTag("transform-run")],
-      },
-    ),
+    listAllDagRuns: builder.query<
+      ListAllDagRunsResponse,
+      ListAllDagRunsRequest
+    >({
+      query: (params) => ({
+        method: "GET",
+        url: "/api/transform-job/dag-runs",
+        params,
+      }),
+      // DAG runs live in the same store as job runs and are seeded from transforms,
+      // so invalidate this list whenever any transform or transform-run changes.
+      providesTags: () => [listTag("transform"), listTag("transform-run")],
+    }),
     cancelDagRun: builder.mutation<void, TransformJobRunId>({
       query: (runId) => ({
         method: "POST",
         url: `/api/transform-job/dag-runs/${runId}/cancel`,
       }),
       invalidatesTags: (_, error) =>
-        invalidateTags(error, [
-          listTag("transform"),
-          listTag("transform-run"),
-        ]),
+        invalidateTags(error, [listTag("transform"), listTag("transform-run")]),
     }),
     listTransformJobRuns: builder.query<
       ListTransformJobRunsResponse,

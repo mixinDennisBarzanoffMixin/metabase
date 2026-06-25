@@ -83,9 +83,7 @@ describe("RunButton", () => {
       });
 
       await user.click(screen.getByTestId("run-options-button"));
-      expect(
-        await screen.findByText("Run with upstream"),
-      ).toBeInTheDocument();
+      expect(await screen.findByText("Run with upstream")).toBeInTheDocument();
     });
 
     it("hides the options toggle while a run is in progress", () => {

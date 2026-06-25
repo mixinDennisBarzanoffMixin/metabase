@@ -3,7 +3,10 @@ import { t } from "ttag";
 import type { TreeTableColumnDef } from "metabase/ui";
 import { Ellipsified } from "metabase/ui";
 import { EMPTY_CELL_PLACEHOLDER } from "metabase/utils/constants";
-import type { TransformDagDirection, TransformDagRun } from "metabase-types/api";
+import type {
+  TransformDagDirection,
+  TransformDagRun,
+} from "metabase-types/api";
 
 function formatDirection(direction: TransformDagDirection | null): string {
   if (direction === "upstream") {

@@ -288,8 +288,6 @@ function getStartTimeOptions() {
   ];
 }
 
-export function isPollingNeeded(
-  runs: Pick<TransformJobRun, "status">[] = [],
-) {
+export function isPollingNeeded(runs: Pick<TransformJobRun, "status">[] = []) {
   return runs.some((run) => run.status === "started");
 }
