@@ -39,7 +39,7 @@ databaseChangeLog:
             columns:
               - column:
                   name: source_transform_id
-                  type: bigint
+                  type: int
                   remarks: FK to transform.id; the seed transform for a DAG-reprocess run. NULL for scheduled job runs.
                   constraints:
                     nullable: true
