@@ -6,6 +6,7 @@ import {
   getTableIdFromInput,
 } from "embedding-sdk-shared/lib/create-metabase-query/input-accessors";
 import type { TableSchema } from "embedding-sdk-shared/lib/create-metabase-query/schema";
+import type { Metadata as MetadataInput, Query } from "metabase-lib";
 import * as Lib from "metabase-lib";
 import type { DatasetQuery } from "metabase-types/api";
 
@@ -40,7 +41,40 @@ export function buildTableDatasetQueryFromInput(
   }
 
   const metadata = createTableMetadata(table, Number(databaseId), input);
-  let libQuery = createLibQuery(metadata, Number(databaseId), Number(tableId));
+  const libQuery = createLibQuery(
+    metadata,
+    Number(databaseId),
+    Number(tableId),
+  );
+
+  return buildTableDatasetQuery(input, libQuery);
+}
+
+export function buildTableDatasetQueryFromMetadata(
+  input: TableQueryInput,
+  metadata: MetadataInput,
+): DatasetQuery | null {
+  const databaseId = getTableDatabaseIdFromInput(input);
+  const tableId = getTableIdFromInput(input);
+
+  if (databaseId == null || tableId == null) {
+    return null;
+  }
+
+  const libQuery = createLibQuery(
+    metadata,
+    Number(databaseId),
+    Number(tableId),
+  );
+
+  return buildTableDatasetQuery(input, libQuery);
+}
+
+function buildTableDatasetQuery(
+  input: TableQueryInput,
+  initialLibQuery: Query,
+): DatasetQuery | null {
+  let libQuery = initialLibQuery;
 
   const queryWithFilters = applyFilters(
     libQuery,

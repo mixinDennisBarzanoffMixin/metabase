@@ -2,7 +2,6 @@ export {
   avg,
   breakout,
   count,
-  createMetabaseQuery,
   distinct,
   filter,
   max,

@@ -1,20 +1,18 @@
-import { act, waitFor } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 
-import { render, screen } from "__support__/ui";
+import { screen } from "__support__/ui";
 import { getLoginStatus } from "embedding-sdk-bundle/store/selectors";
 import { renderWithSDKProviders } from "embedding-sdk-bundle/test/__support__/ui";
 import { createMockSdkConfig } from "embedding-sdk-bundle/test/mocks/config";
 import { setupSdkState } from "embedding-sdk-bundle/test/server-mocks/sdk-init";
 import { ensureMetabaseProviderPropsStore } from "embedding-sdk-shared/lib/ensure-metabase-provider-props-store";
-import { SdkLoadingState } from "embedding-sdk-shared/types/sdk-loading";
-import { createMetabaseQuery as createMetabaseQueryInBundle } from "metabase/embedding-sdk/lib/create-metabase-query";
+import { createMetabaseQuery as createDatasetQuery } from "metabase/embedding-sdk/lib/create-metabase-query";
 
 import type { MetabaseQueryOptions } from "./use-metabase-query";
 import {
   avg,
   breakout,
   count,
-  createMetabaseQuery,
   distinct,
   filter,
   max,
@@ -562,9 +560,6 @@ describe("useMetabaseQuery", () => {
 
   beforeEach(() => {
     ensureMetabaseProviderPropsStore().cleanup();
-    window.METABASE_EMBEDDING_SDK_BUNDLE = {
-      createMetabaseQuery: createMetabaseQueryInBundle,
-    } as typeof window.METABASE_EMBEDDING_SDK_BUNDLE;
   });
 
   describe("createMetabaseQuery", () => {
@@ -584,21 +579,9 @@ describe("useMetabaseQuery", () => {
       breakout: [fieldRef(101)],
     });
 
-    it("throws when called before the SDK bundle is loaded", () => {
-      delete window.METABASE_EMBEDDING_SDK_BUNDLE;
-
-      expect(() =>
-        createMetabaseQuery({
-          table: TEST_SCHEMA.tables.orders,
-        }),
-      ).toThrow(
-        "createMetabaseQuery requires the Metabase Embedding SDK bundle to be loaded.",
-      );
-    });
-
     it("builds a complete dataset query from a generated table schema", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           filters: [
             filter(TEST_SCHEMA.tables.orders.fields.status, "=", "paid"),
@@ -610,7 +593,7 @@ describe("useMetabaseQuery", () => {
 
     it("builds a dataset query from minimal table metadata and referenced fields", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           table: {
             id: TEST_SCHEMA.tables.orders.id,
             databaseId: TEST_SCHEMA.tables.orders.databaseId,
@@ -623,39 +606,19 @@ describe("useMetabaseQuery", () => {
       ).toEqual(expectedOrdersQuery);
     });
 
-    it("memoizes a complete dataset query from a generated table schema", () => {
-      render(<MetabaseQueryObjectComponent />);
+    it("memoizes a complete dataset query from a generated table schema", async () => {
+      setup({ component: <MetabaseQueryObjectComponent /> });
 
-      expect(
-        JSON.parse(screen.getByTestId("query-object").textContent ?? ""),
-      ).toEqual(expectedOrdersQuery);
-    });
-
-    it("builds a query object after the SDK bundle loading state changes", () => {
-      delete window.METABASE_EMBEDDING_SDK_BUNDLE;
-
-      render(<MetabaseQueryObjectComponent />);
-
-      expect(screen.getByTestId("query-object")).toHaveTextContent("null");
-
-      window.METABASE_EMBEDDING_SDK_BUNDLE = {
-        createMetabaseQuery: createMetabaseQueryInBundle,
-      } as unknown as typeof window.METABASE_EMBEDDING_SDK_BUNDLE;
-
-      act(() => {
-        ensureMetabaseProviderPropsStore().updateInternalProps({
-          loadingState: SdkLoadingState.Loaded,
-        });
+      await waitFor(() => {
+        expect(
+          JSON.parse(screen.getByTestId("query-object").textContent ?? ""),
+        ).toEqual(expectedOrdersQuery);
       });
-
-      expect(
-        JSON.parse(screen.getByTestId("query-object").textContent ?? ""),
-      ).toEqual(expectedOrdersQuery);
     });
 
     it("builds explicit count aggregations", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           aggregations: [count()],
           breakouts: [breakout(TEST_SCHEMA.tables.orders.fields.status)],
@@ -665,7 +628,7 @@ describe("useMetabaseQuery", () => {
 
     it("supports count aggregation object literals", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           aggregations: [{ type: "count" }],
           breakouts: [breakout(TEST_SCHEMA.tables.orders.fields.status)],
@@ -675,7 +638,7 @@ describe("useMetabaseQuery", () => {
 
     it("builds field aggregation helpers", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           aggregations: [
             sum(TEST_SCHEMA.tables.orders.fields.amount),
@@ -698,7 +661,7 @@ describe("useMetabaseQuery", () => {
 
     it("does not force minute bucketing for date filters", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           filters: [
             filter(
@@ -717,7 +680,7 @@ describe("useMetabaseQuery", () => {
 
     it("uses effective or base type to preserve time for datetime filters", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           filters: [
             filter(
@@ -736,7 +699,7 @@ describe("useMetabaseQuery", () => {
 
     it("builds public date comparison operators", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           filters: [
             filter(
@@ -755,7 +718,7 @@ describe("useMetabaseQuery", () => {
 
     it("builds time-interval filters through metabase-lib", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           filters: [
             {
@@ -782,7 +745,7 @@ describe("useMetabaseQuery", () => {
 
     it("builds offset time-interval filters through metabase-lib", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           filters: [
             filter(
@@ -817,7 +780,7 @@ describe("useMetabaseQuery", () => {
 
     it("does not build filters with operators unsupported by the field type", () => {
       expect(() =>
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           filters: [
             {
@@ -832,7 +795,7 @@ describe("useMetabaseQuery", () => {
       );
 
       expect(() =>
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           filters: [
             {
@@ -849,7 +812,7 @@ describe("useMetabaseQuery", () => {
 
     it("supports field aggregation object literals", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           aggregations: [
             { type: "max", dimension: TEST_SCHEMA.tables.orders.fields.amount },
@@ -864,7 +827,7 @@ describe("useMetabaseQuery", () => {
 
     it("preserves default binning when metabase-lib has no default strategy", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           breakouts: [
             breakout(TEST_SCHEMA.tables.orders.fields.amount, {
@@ -882,7 +845,7 @@ describe("useMetabaseQuery", () => {
 
     it("builds binned table breakouts through metabase-lib", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
           breakouts: [
             breakout(TEST_SCHEMA.tables.orders.fields.amount, {
@@ -904,7 +867,7 @@ describe("useMetabaseQuery", () => {
 
     it("builds a complete dataset query from a generated metric schema", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           metric: TEST_SCHEMA.metrics.orderCount,
           filters: [
             filter(TEST_SCHEMA.tables.orders.fields.status, "=", "paid"),
@@ -933,7 +896,7 @@ describe("useMetabaseQuery", () => {
 
     it("builds generated metric segment filters", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           metric: TEST_SCHEMA.metrics.orderCount,
           filters: [TEST_SCHEMA.tables.orders.segments.completed],
         }),
@@ -947,7 +910,7 @@ describe("useMetabaseQuery", () => {
 
     it("adds source-field when metric dimensions reference an implicitly joined table", () => {
       expect(
-        createMetabaseQuery({
+        createDatasetQuery({
           metric: TEST_SCHEMA.metrics.orderCount,
           breakouts: [
             breakout(TEST_SCHEMA.metrics.orderCount.dimensions.franchises.name),
@@ -976,12 +939,14 @@ describe("useMetabaseQuery", () => {
       );
     });
 
-    it("memoizes a complete dataset query from a generated metric schema", () => {
-      render(<MetricQueryObjectComponent />);
+    it("memoizes a complete dataset query from a generated metric schema", async () => {
+      setup({ component: <MetricQueryObjectComponent /> });
 
-      expect(
-        JSON.parse(screen.getByTestId("query-object").textContent ?? ""),
-      ).toEqual(expectedMetricQuery);
+      await waitFor(() => {
+        expect(
+          JSON.parse(screen.getByTestId("query-object").textContent ?? ""),
+        ).toEqual(expectedMetricQuery);
+      });
     });
   });
 
@@ -1062,6 +1027,40 @@ describe("useMetabaseQuery", () => {
         }),
       });
     });
+  });
+
+  it("preloads metadata before querying generated table objects", async () => {
+    const datasetQuery = queryObject({
+      filters: [["=", mbqlOptions(), fieldRef(101), "paid"]],
+    });
+    const createMetabaseQueryApi = jest.fn().mockResolvedValue(datasetQuery);
+    const createMetabaseQuery = jest.fn(() => createMetabaseQueryApi);
+    const queryDatasetApi = jest.fn().mockResolvedValue({
+      rowCount: null,
+      runningTime: null,
+      columns: [],
+      rows: [],
+    });
+    const queryDataset = jest.fn(() => queryDatasetApi);
+
+    setup({
+      queryDataset,
+      createMetabaseQuery,
+      component: <TableObjectComponent />,
+    });
+
+    await waitFor(() => {
+      expect(createMetabaseQueryApi).toHaveBeenCalledWith({
+        query: expect.objectContaining({
+          table: TEST_SCHEMA.tables.orders,
+        }),
+      });
+      expect(queryDatasetApi).toHaveBeenCalledWith({ datasetQuery });
+    });
+
+    expect(createMetabaseQueryApi.mock.invocationCallOrder[0]).toBeLessThan(
+      queryDatasetApi.mock.invocationCallOrder[0],
+    );
   });
 
   it("queries generated metrics with measures via the dataset endpoint", async () => {
@@ -1167,33 +1166,37 @@ describe("useMetabaseQuery", () => {
     });
   });
 
-  it("keeps generated metric query objects on the dataset query path", () => {
-    render(<MetricQueryObjectComponent />);
+  it("keeps generated metric query objects on the dataset query path", async () => {
+    setup({ component: <MetricQueryObjectComponent /> });
 
-    expect(
-      JSON.parse(screen.getByTestId("query-object").textContent ?? ""),
-    ).toEqual(
-      queryObject({
-        aggregation: [["metric", mbqlOptions(), 34]],
-        breakout: [fieldRef(101)],
-      }),
-    );
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId("query-object").textContent ?? ""),
+      ).toEqual(
+        queryObject({
+          aggregation: [["metric", mbqlOptions(), 34]],
+          breakout: [fieldRef(101)],
+        }),
+      );
+    });
   });
 
-  it("builds generated source-card metric query objects on the dataset query path", () => {
-    render(<SourceCardMetricQueryObjectComponent />);
+  it("builds generated source-card metric query objects on the dataset query path", async () => {
+    setup({ component: <SourceCardMetricQueryObjectComponent /> });
 
-    expect(
-      JSON.parse(screen.getByTestId("query-object").textContent ?? ""),
-    ).toEqual(
-      queryObject(
-        {
-          aggregation: [["metric", mbqlOptions(), 36]],
-          breakout: [fieldRef(103, { "temporal-unit": "month" })],
-        },
-        { sourceCard: 98 },
-      ),
-    );
+    await waitFor(() => {
+      expect(
+        JSON.parse(screen.getByTestId("query-object").textContent ?? ""),
+      ).toEqual(
+        queryObject(
+          {
+            aggregation: [["metric", mbqlOptions(), 36]],
+            breakout: [fieldRef(103, { "temporal-unit": "month" })],
+          },
+          { sourceCard: 98 },
+        ),
+      );
+    });
   });
 
   it("raises a runtime error when metric table-field filters are not valid dimensions", async () => {
@@ -1361,16 +1364,22 @@ const InvalidMetricDimensionFilterComponent = () => {
 
 function setup({
   queryDataset,
+  createMetabaseQuery = jest.fn(
+    () =>
+      async ({ query }: { query: Parameters<typeof createDatasetQuery>[0] }) =>
+        createDatasetQuery(query),
+  ),
   component = <TestComponent />,
 }: {
   queryDataset?: jest.Mock;
+  createMetabaseQuery?: jest.Mock;
   component?: JSX.Element;
 }) {
   const { state } = setupSdkState();
 
   renderWithSDKProviders(component, {
     metabaseEmbeddingSdkBundleExports: {
-      createMetabaseQuery: createMetabaseQueryInBundle,
+      createMetabaseQuery,
       getLoginStatus,
       queryDataset,
     },
