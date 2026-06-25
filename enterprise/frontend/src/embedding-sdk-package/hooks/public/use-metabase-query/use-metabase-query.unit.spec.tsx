@@ -315,6 +315,10 @@ const _validTableAggregationQuery = {
   ],
 } satisfies MetabaseQueryOptions<OrdersTable>;
 
+const _validTableIdQuery = {
+  tableId: TEST_SCHEMA.tables.orders.id,
+} satisfies MetabaseQueryOptions;
+
 const _invalidTableAggregationQuery = {
   table: TEST_SCHEMA.tables.orders,
   aggregations: [
@@ -1006,6 +1010,36 @@ describe("useMetabaseQuery", () => {
     });
   });
 
+  it("queries table ids via the dataset endpoint", async () => {
+    const datasetQuery = queryObject({});
+    const createMetabaseQueryApi = jest.fn().mockResolvedValue(datasetQuery);
+    const createMetabaseQuery = jest.fn(() => createMetabaseQueryApi);
+    const queryDatasetApi = jest.fn().mockResolvedValue({
+      rowCount: null,
+      runningTime: null,
+      columns: [],
+      rows: [],
+    });
+    const queryDataset = jest.fn(() => queryDatasetApi);
+
+    setup({
+      queryDataset,
+      createMetabaseQuery,
+      component: <TableIdComponent />,
+    });
+
+    await waitFor(() => {
+      expect(createMetabaseQueryApi).toHaveBeenCalledWith({
+        query: {
+          tableId: TEST_SCHEMA.tables.orders.id,
+        },
+      });
+      expect(queryDatasetApi).toHaveBeenCalledWith({
+        datasetQuery,
+      });
+    });
+  });
+
   it("queries generated table objects via a memoized dataset query object", async () => {
     const queryDatasetApi = jest.fn().mockResolvedValue({
       rowCount: null,
@@ -1296,6 +1330,14 @@ const TableObjectComponent = () => {
   useMetabaseQuery({
     table: TEST_SCHEMA.tables.orders,
     filters: [filter(TEST_SCHEMA.tables.orders.fields.status, "=", "paid")],
+  });
+
+  return null;
+};
+
+const TableIdComponent = () => {
+  useMetabaseQuery({
+    tableId: TEST_SCHEMA.tables.orders.id,
   });
 
   return null;

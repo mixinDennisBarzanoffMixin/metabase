@@ -32,6 +32,10 @@ export function getTableIdFromInput(input: unknown): ID | null {
     return null;
   }
 
+  if ("tableId" in input && typeof input.tableId === "number") {
+    return input.tableId;
+  }
+
   if ("table" in input && isTableReference(input.table)) {
     return input.table.id;
   }

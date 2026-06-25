@@ -14,14 +14,16 @@ export type MetricReferenceLike = Pick<MetricSchema, "dimensions"> & {
 };
 
 export type QuestionInput = { questionId: ID; parameters?: unknown };
-export type TableInput = { table?: TableSchema };
+export type TableInput = { table?: TableSchema; tableId?: number };
 export type MetricInput = { metric?: MetricReferenceLike; metricId?: number };
 
 export const isQuestionInput = (input: unknown): input is QuestionInput =>
   isObject(input) && "questionId" in input && isId(input.questionId);
 
 export const isTableInput = (input: unknown): input is TableInput =>
-  isObject(input) && "table" in input && isTableReference(input.table);
+  isObject(input) &&
+  (("table" in input && isTableReference(input.table)) ||
+    ("tableId" in input && typeof input.tableId === "number"));
 
 export const isMetricInput = (input: unknown): input is MetricInput =>
   isObject(input) &&

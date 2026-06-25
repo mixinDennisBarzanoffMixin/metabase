@@ -46,6 +46,10 @@ const TABLE_QUERY = {
   },
 };
 
+const TABLE_ID_QUERY = {
+  tableId: 1,
+};
+
 const createMockStore = () =>
   ({
     dispatch: jest.fn().mockResolvedValue(undefined),
@@ -79,6 +83,26 @@ describe("createMetabaseQuery", () => {
 
     expect(createMetabaseQueryFromMetadata).toHaveBeenCalledWith(
       TABLE_QUERY,
+      METADATA,
+    );
+
+    expect(result).toBe(DATASET_QUERY);
+  });
+
+  it("loads table query metadata for tableId queries", async () => {
+    const store = createMockStore();
+
+    const result = await createMetabaseQuery(store)({
+      query: TABLE_ID_QUERY,
+    });
+
+    expect(fetchTableMetadata).toHaveBeenCalledWith(
+      { id: 1 },
+      { reload: true },
+    );
+
+    expect(createMetabaseQueryFromMetadata).toHaveBeenCalledWith(
+      TABLE_ID_QUERY,
       METADATA,
     );
 

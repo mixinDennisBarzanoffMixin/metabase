@@ -60,6 +60,16 @@ export function createLibQuery(
 // metadata provider to metabase-lib - and rewrite this file.
 // -------------
 
+export function getDatabaseIdFromMetadata(
+  metadata: MetadataInput,
+  tableId: TableId,
+): number | null {
+  const table = getTableMetadataRecord(metadata, tableId);
+  const databaseId = table?.db_id ?? table?.db?.id;
+
+  return typeof databaseId === "number" ? databaseId : null;
+}
+
 export function createTableMetadata(
   table: TableMetadataSource,
   databaseId: number,
@@ -92,6 +102,30 @@ export function createTableMetadata(
     ),
   };
 }
+
+type TableMetadataRecord = {
+  db_id?: unknown;
+  db?: {
+    id?: unknown;
+  };
+};
+
+const getTableMetadataRecord = (
+  metadata: MetadataInput,
+  tableId: TableId,
+): TableMetadataRecord | null => {
+  const metadataWithTables = metadata as {
+    tables?: Record<string | number, TableMetadataRecord>;
+    table?: (id: TableId) => TableMetadataRecord | null;
+  };
+
+  return (
+    metadataWithTables.tables?.[tableId] ??
+    metadataWithTables.tables?.[String(tableId)] ??
+    metadataWithTables.table?.(tableId) ??
+    null
+  );
+};
 
 export function createMetricMetadata(
   input: MetricQueryInput,

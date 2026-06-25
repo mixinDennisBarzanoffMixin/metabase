@@ -370,9 +370,13 @@ export type QuestionQuery<TQuestion> = {
   enabled?: boolean;
 };
 
-type TableReference<TTable> = {
-  table: TTable extends TableSchema ? TTable : TableSchema;
-};
+type TableReference<TTable> = TTable extends TableSchema
+  ?
+      | { table: TTable; tableId?: never }
+      | { table?: never; tableId: TableId<TTable> }
+  :
+      | { table: TableSchema; tableId?: never }
+      | { table?: never; tableId: number };
 
 export type TableQuery<TTable> = TableReference<TTable> & {
   questionId?: never;

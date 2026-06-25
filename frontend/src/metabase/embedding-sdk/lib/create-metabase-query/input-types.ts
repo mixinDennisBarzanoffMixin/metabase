@@ -38,7 +38,8 @@ export type QuestionQueryInput = {
 };
 
 export type TableQueryInput = {
-  table: TableSchema;
+  table?: TableSchema;
+  tableId?: number;
 
   questionId?: never;
   metric?: never;

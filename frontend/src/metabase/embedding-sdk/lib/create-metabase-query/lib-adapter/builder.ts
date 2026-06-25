@@ -27,6 +27,7 @@ import {
   createLibQuery,
   createMetricMetadata,
   createTableMetadata,
+  getDatabaseIdFromMetadata,
 } from "./metadata";
 
 export function buildTableDatasetQueryFromInput(
@@ -54,10 +55,17 @@ export function buildTableDatasetQueryFromMetadata(
   input: TableQueryInput,
   metadata: MetadataInput,
 ): DatasetQuery | null {
-  const databaseId = getTableDatabaseIdFromInput(input);
   const tableId = getTableIdFromInput(input);
 
-  if (databaseId == null || tableId == null) {
+  if (tableId == null) {
+    return null;
+  }
+
+  const databaseId =
+    getTableDatabaseIdFromInput(input) ??
+    getDatabaseIdFromMetadata(metadata, Number(tableId));
+
+  if (databaseId == null) {
     return null;
   }
 

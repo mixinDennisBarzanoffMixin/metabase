@@ -1,8 +1,5 @@
 import type { SdkStore } from "embedding-sdk-bundle/store/types";
-import {
-  getTableDatabaseIdFromInput,
-  getTableIdFromInput,
-} from "embedding-sdk-shared/lib/create-metabase-query/input-accessors";
+import { getTableIdFromInput } from "embedding-sdk-shared/lib/create-metabase-query/input-accessors";
 import { isTableInput } from "embedding-sdk-shared/lib/create-metabase-query/input-guards";
 import {
   createMetabaseQuery as createMetabaseQueryFromGeneratedSchema,
@@ -33,9 +30,8 @@ export const createMetabaseQuery =
     }
 
     const tableId = getTableIdFromInput(query);
-    const databaseId = getTableDatabaseIdFromInput(query);
 
-    if (tableId == null || databaseId == null) {
+    if (tableId == null) {
       return createMetabaseQueryFromGeneratedSchema(query);
     }
 
