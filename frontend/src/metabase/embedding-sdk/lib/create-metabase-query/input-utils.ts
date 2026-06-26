@@ -47,8 +47,7 @@ export const isMetricDimensionWithFieldId = (
 
 export const isColumnReference = (
   value: unknown,
-): value is ColumnReferenceInput =>
-  typeof value === "string" || isTableFieldSchema(value);
+): value is ColumnReferenceInput => isTableFieldSchema(value);
 
 export function getMetricDimensionValues<TDimension>(
   metric: unknown,
@@ -85,7 +84,7 @@ export const normalizeBreakout = (
 function getBreakoutDimension(
   breakout: BreakoutInput | unknown,
 ): ColumnReferenceInput | null {
-  if (typeof breakout === "string" || isTableFieldSchema(breakout)) {
+  if (isTableFieldSchema(breakout)) {
     return breakout;
   }
 

@@ -57,7 +57,7 @@ type DimensionValues<TEntity> =
   | MetricDimensionValues<TEntity>;
 
 type DimensionInput<TEntity> = [DimensionValues<TEntity>] extends [never]
-  ? string | FieldSchema
+  ? FieldSchema
   : DimensionValues<TEntity>;
 
 export type MetricReference<TMappedTableId extends number = number> = {
@@ -376,13 +376,6 @@ type MetricIdReference = {
   id: number;
 };
 
-type IdOnlySemanticOptions = {
-  filters?: never;
-  aggregations?: never;
-  measures?: never;
-  breakouts?: never;
-};
-
 type GeneratedTableQuery<TTable extends TableSchema> = {
   table: TTable;
   questionId?: never;
@@ -412,8 +405,15 @@ type TableIdQuery<TTableId extends number = number> = {
   table: TableIdReference<TTableId>;
   questionId?: never;
   metric?: never;
+  filters?: readonly (SegmentReference<TTableId> | MetabaseDimensionFilter)[];
+  aggregations?: readonly (
+    | MeasureReference<TTableId>
+    | AnyAggregation<FieldSchema>
+  )[];
+  measures?: readonly MeasureReference<TTableId>[];
+  breakouts?: readonly MetabaseBreakout[];
   enabled?: boolean;
-} & IdOnlySemanticOptions;
+};
 
 export type TableQuery<TTable> = TTable extends TableSchema
   ? GeneratedTableQuery<TTable>
@@ -442,8 +442,11 @@ type MetricIdQuery = {
   metric: MetricIdReference;
   questionId?: never;
   table?: never;
+  filters?: readonly (SegmentReference | MetabaseMetricDimensionFilter)[];
+  measures?: readonly MeasureReference[];
+  breakouts?: readonly MetabaseMetricBreakout[];
   enabled?: boolean;
-} & IdOnlySemanticOptions;
+};
 
 export type MetricQuery<TMetric> = TMetric extends MetricReference
   ? GeneratedMetricQuery<TMetric>

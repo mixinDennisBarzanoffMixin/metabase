@@ -259,7 +259,7 @@ const { data } = useMetabaseQuery({
 
 Measures must come from tables in the metric's `mappedTableIds`. Fields, segments, and measures from unmapped tables are rejected by TypeScript and at runtime.
 
-`table: { id }` and `metric: { id }` are runtime escape hatches for id-only or no-schema use cases. Do not use them in generated data apps unless the user explicitly asks for an id-only/no-schema prototype. They can build a base table or metric query after metadata loads, but they do not provide typed fields, metric dimensions, segments, measures, or breakouts, so they are a poor fit for semantic data-app UI work.
+`table: { id }` and `metric: { id }` are runtime escape hatches for id-only or no-schema use cases. Do not use them in generated data apps unless the user explicitly asks for an id-only/no-schema prototype. They can build a base table or metric query after metadata loads and can use generated semantic refs for filters, measures, and breakouts, but the query source itself does not provide typed field or metric-dimension discovery. Raw string dimensions such as `dimension: "status"` are not supported; use generated schema field objects.
 
 ## Interactive Metabase Views
 

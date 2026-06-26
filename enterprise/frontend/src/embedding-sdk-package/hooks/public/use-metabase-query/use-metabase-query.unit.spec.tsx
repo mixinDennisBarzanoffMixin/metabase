@@ -496,18 +496,34 @@ const _validMetricIdQuery = {
   metric: { id: TEST_SCHEMA.metrics.orderCount.id },
 } satisfies MetabaseQueryOptions;
 
-const _invalidTableIdSemanticQuery = {
+const _validTableIdSemanticQuery = {
   table: { id: TEST_SCHEMA.tables.orders.id },
-  // @ts-expect-error id-only table references cannot type semantic filters
   filters: [filter(TEST_SCHEMA.tables.orders.fields.status, "=", "paid")],
 } satisfies MetabaseQueryOptions;
 
-const _invalidMetricIdSemanticQuery = {
+const _validMetricIdSemanticQuery = {
   metric: { id: TEST_SCHEMA.metrics.orderCount.id },
-  // @ts-expect-error id-only metric references cannot type semantic breakouts
   breakouts: [
     breakout(TEST_SCHEMA.metrics.orderCount.dimensions.orders.status),
   ],
+} satisfies MetabaseQueryOptions;
+
+const _invalidStringDimensionQuery = {
+  table: { id: TEST_SCHEMA.tables.orders.id },
+  filters: [
+    {
+      // @ts-expect-error dimensions must use generated schema field objects
+      dimension: "status",
+      operator: "=",
+      value: "paid",
+    },
+  ],
+} satisfies MetabaseQueryOptions;
+
+const _invalidStringBreakoutQuery = {
+  table: { id: TEST_SCHEMA.tables.orders.id },
+  // @ts-expect-error breakouts must use generated schema field objects
+  breakouts: ["status"],
 } satisfies MetabaseQueryOptions;
 
 const _invalidTableAggregationQuery = {
@@ -794,21 +810,20 @@ describe("useMetabaseQuery", () => {
       ).toEqual(queryObject({}));
     });
 
-    it("rejects semantic options with an id-only table reference", () => {
-      expect(() =>
+    it("builds semantic queries from an id-only table reference and generated field references", () => {
+      expect(
         createDatasetQuery({
           table: { id: TEST_SCHEMA.tables.orders.id },
           filters: [
             filter(TEST_SCHEMA.tables.orders.fields.status, "=", "paid"),
           ],
+          breakouts: [breakout(TEST_SCHEMA.tables.orders.fields.createdAt)],
         }),
-      ).toThrow(
-        "Table query filters, measures, aggregations, and breakouts require a generated table schema object.",
-      );
+      ).toEqual(expectedOrdersQuery);
     });
 
-    it("rejects semantic options with a partial table reference", () => {
-      expect(() =>
+    it("builds semantic queries from a partial table reference and generated field references", () => {
+      expect(
         createDatasetQuery({
           table: {
             id: TEST_SCHEMA.tables.orders.id,
@@ -817,27 +832,24 @@ describe("useMetabaseQuery", () => {
           filters: [
             filter(TEST_SCHEMA.tables.orders.fields.status, "=", "paid"),
           ],
+          breakouts: [breakout(TEST_SCHEMA.tables.orders.fields.createdAt)],
         }),
-      ).toThrow(
-        "Table query filters, measures, aggregations, and breakouts require a generated table schema object.",
-      );
+      ).toEqual(expectedOrdersQuery);
     });
 
-    it("rejects semantic options with an id-only metric reference", () => {
-      expect(() =>
+    it("builds semantic queries from an id-only metric reference and generated field references", () => {
+      expect(
         createDatasetQuery({
           metric: { id: TEST_SCHEMA.metrics.orderCount.id },
           breakouts: [
             breakout(TEST_SCHEMA.metrics.orderCount.dimensions.orders.status),
           ],
         }),
-      ).toThrow(
-        "Metric query filters, measures, and breakouts require a generated metric schema object.",
-      );
+      ).toEqual(expectedMetricQuery);
     });
 
-    it("rejects semantic options with a partial metric reference", () => {
-      expect(() =>
+    it("builds semantic queries from a partial metric reference and generated measures", () => {
+      expect(
         createDatasetQuery({
           metric: {
             id: TEST_SCHEMA.metrics.orderCount.id,
@@ -845,8 +857,24 @@ describe("useMetabaseQuery", () => {
           },
           measures: [TEST_SCHEMA.tables.orders.measures.revenue],
         }),
+      ).toEqual(
+        queryObject({
+          aggregation: [
+            ["metric", mbqlOptions(), 34],
+            ["measure", mbqlOptions({ "display-name": "Measure 21" }), 21],
+          ],
+        }),
+      );
+    });
+
+    it("rejects string dimensions", () => {
+      expect(() =>
+        createDatasetQuery({
+          table: { id: TEST_SCHEMA.tables.orders.id },
+          filters: [{ dimension: "status", operator: "=", value: "paid" }],
+        }),
       ).toThrow(
-        "Metric query filters, measures, and breakouts require a generated metric schema object.",
+        "Table query object creation requires loaded Metabase metadata.",
       );
     });
 

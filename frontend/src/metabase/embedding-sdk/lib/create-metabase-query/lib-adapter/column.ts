@@ -14,10 +14,6 @@ export function findLibColumn(
   field: ColumnReferenceInput,
   options: Record<string, unknown> = {},
 ): ColumnMetadata | null {
-  if (typeof field === "string") {
-    return findLibColumnByName(query, field);
-  }
-
   const fieldId = getFieldId(field);
 
   if (fieldId == null) {
@@ -26,14 +22,6 @@ export function findLibColumn(
 
   return findLibColumnByFieldId(query, field, fieldId, options);
 }
-
-const findLibColumnByName = (
-  query: Query,
-  fieldName: string,
-): ColumnMetadata | null =>
-  Lib.filterableColumns(query, STAGE_INDEX).find(
-    (column) => Lib.displayInfo(query, STAGE_INDEX, column).name === fieldName,
-  ) ?? null;
 
 function findLibColumnByFieldId(
   query: Query,

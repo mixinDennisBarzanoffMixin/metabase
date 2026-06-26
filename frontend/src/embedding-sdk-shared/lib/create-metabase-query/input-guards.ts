@@ -49,10 +49,7 @@ export const isGeneratedMetricReference = (
   isMetricReference(value) &&
   "mappedTableIds" in value &&
   Array.isArray(value.mappedTableIds) &&
-  value.mappedTableIds.every((id) => typeof id === "number") &&
-  "columns" in value &&
-  Array.isArray(value.columns) &&
-  value.columns.length > 0;
+  value.mappedTableIds.every((id) => typeof id === "number");
 
 export const isTableReference = (value: unknown): value is TableReferenceLike =>
   isObject(value) && typeof value.id === "number";
@@ -62,20 +59,7 @@ export const isGeneratedTableReference = (
 ): value is TableSchema =>
   isTableReference(value) &&
   "databaseId" in value &&
-  typeof value.databaseId === "number" &&
-  hasGeneratedTableSchemaDetails(value);
-
-const hasGeneratedTableSchemaDetails = (value: Record<string, unknown>) =>
-  hasSchemaArrayEntries(value.columns) ||
-  hasSchemaRecordEntries(value.fields) ||
-  hasSchemaRecordEntries(value.segments) ||
-  hasSchemaRecordEntries(value.measures);
-
-const hasSchemaArrayEntries = (value: unknown) =>
-  Array.isArray(value) && value.length > 0;
-
-const hasSchemaRecordEntries = (value: unknown) =>
-  isObject(value) && Object.keys(value).length > 0;
+  typeof value.databaseId === "number";
 
 export const isId = (value: unknown): value is ID =>
   typeof value === "string" || typeof value === "number";

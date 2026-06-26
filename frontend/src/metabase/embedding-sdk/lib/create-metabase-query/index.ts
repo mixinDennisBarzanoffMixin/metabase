@@ -13,9 +13,7 @@ import {
 } from "./lib-adapter/builder";
 import {
   validateMetricGeneratedDimensions,
-  validateMetricGeneratedSchemaInput,
   validateMetricTableScopedInputs,
-  validateTableGeneratedSchemaInput,
   validateTableScopedInputs,
 } from "./validation";
 
@@ -64,8 +62,6 @@ function buildValidatedTableQueryFromMetadata(
     return null;
   }
 
-  validateTableGeneratedSchemaInput(input);
-
   validateTableScopedInputs({
     allowedTableIds: [Number(tableId)],
     filters: input.filters,
@@ -86,7 +82,6 @@ function buildValidatedMetricQueryFromMetadata(
     return null;
   }
 
-  validateMetricGeneratedSchemaInput(input);
   validateMetricTableScopedInputs(input);
   validateMetricGeneratedDimensions(input);
 

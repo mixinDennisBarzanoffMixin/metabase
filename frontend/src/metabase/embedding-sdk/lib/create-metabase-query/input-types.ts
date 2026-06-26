@@ -23,7 +23,7 @@ export type SqlParameterValuesInput = Record<
   | undefined
 >;
 
-export type ColumnReferenceInput = string | FieldSchema;
+export type ColumnReferenceInput = FieldSchema;
 
 export type BreakoutInput<TDimension = ColumnReferenceInput> =
   | TDimension
