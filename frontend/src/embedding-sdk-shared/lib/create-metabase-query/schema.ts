@@ -57,6 +57,8 @@ export type TableSchema = {
   measures?: Record<string, MeasureSchema>;
 };
 
+export type TableIdReference = Pick<TableSchema, "id">;
+
 export type MetricSchema = {
   id: number;
   databaseId?: number;
@@ -66,3 +68,5 @@ export type MetricSchema = {
   mappedTableIds?: readonly number[];
   dimensions?: Record<string, Record<string, FieldSchema>>;
 };
+
+export type MetricIdReference = Pick<MetricSchema, "id">;

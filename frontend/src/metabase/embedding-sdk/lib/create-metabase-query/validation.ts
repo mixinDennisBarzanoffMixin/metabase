@@ -1,5 +1,9 @@
 import { getMetricMappedTableIdsFromInput } from "embedding-sdk-shared/lib/create-metabase-query/input-accessors";
-import { isTableFieldSchema } from "embedding-sdk-shared/lib/create-metabase-query/input-guards";
+import {
+  isGeneratedMetricReference,
+  isGeneratedTableReference,
+  isTableFieldSchema,
+} from "embedding-sdk-shared/lib/create-metabase-query/input-guards";
 import type { FieldSchema } from "embedding-sdk-shared/lib/create-metabase-query/schema";
 
 import {
@@ -9,8 +13,32 @@ import {
   isSegmentSchema,
   isTableDimensionFilter,
 } from "./guards";
-import type { MetricQueryInput } from "./input-types";
+import type { MetricQueryInput, TableQueryInput } from "./input-types";
 import { getMetricDimensionValues, normalizeBreakout } from "./input-utils";
+
+export function validateTableGeneratedSchemaInput(input: TableQueryInput) {
+  if (
+    input.table != null &&
+    !isGeneratedTableReference(input.table) &&
+    hasSemanticInputs(input)
+  ) {
+    throw new Error(
+      "Table query filters, measures, aggregations, and breakouts require a generated table schema object. Use table: schema.tables.* or omit semantic query options.",
+    );
+  }
+}
+
+export function validateMetricGeneratedSchemaInput(input: MetricQueryInput) {
+  if (
+    input.metric != null &&
+    !isGeneratedMetricReference(input.metric) &&
+    hasSemanticInputs(input)
+  ) {
+    throw new Error(
+      "Metric query filters, measures, and breakouts require a generated metric schema object. Use metric: schema.metrics.* or omit semantic query options.",
+    );
+  }
+}
 
 export const validateMetricTableScopedInputs = (input: MetricQueryInput) =>
   validateTableScopedInputs({
@@ -20,6 +48,19 @@ export const validateMetricTableScopedInputs = (input: MetricQueryInput) =>
     measures: input.measures,
     context: "Metric query",
   });
+
+function hasSemanticInputs(input: TableQueryInput | MetricQueryInput): boolean {
+  return (
+    hasItems(input.filters) ||
+    hasItems(input.measures) ||
+    ("aggregations" in input && hasItems(input.aggregations)) ||
+    hasItems(input.breakouts)
+  );
+}
+
+function hasItems(value: readonly unknown[] | undefined): boolean {
+  return Boolean(value?.length);
+}
 
 export function validateMetricGeneratedDimensions(input: MetricQueryInput) {
   input.filters?.forEach((filter) => {

@@ -460,11 +460,25 @@ const _validTableAggregationQuery = {
 } satisfies MetabaseQueryOptions<OrdersTable>;
 
 const _validTableIdQuery = {
-  tableId: TEST_SCHEMA.tables.orders.id,
+  table: { id: TEST_SCHEMA.tables.orders.id },
 } satisfies MetabaseQueryOptions;
 
 const _validMetricIdQuery = {
-  metricId: TEST_SCHEMA.metrics.orderCount.id,
+  metric: { id: TEST_SCHEMA.metrics.orderCount.id },
+} satisfies MetabaseQueryOptions;
+
+const _invalidTableIdSemanticQuery = {
+  table: { id: TEST_SCHEMA.tables.orders.id },
+  // @ts-expect-error id-only table references cannot type semantic filters
+  filters: [filter(TEST_SCHEMA.tables.orders.fields.status, "=", "paid")],
+} satisfies MetabaseQueryOptions;
+
+const _invalidMetricIdSemanticQuery = {
+  metric: { id: TEST_SCHEMA.metrics.orderCount.id },
+  // @ts-expect-error id-only metric references cannot type semantic breakouts
+  breakouts: [
+    breakout(TEST_SCHEMA.metrics.orderCount.dimensions.orders.status),
+  ],
 } satisfies MetabaseQueryOptions;
 
 const _invalidTableAggregationQuery = {
@@ -743,16 +757,38 @@ describe("useMetabaseQuery", () => {
       ).toEqual(expectedOrdersQuery);
     });
 
-    it("builds a dataset query from a table id and loaded metadata", () => {
+    it("builds a base dataset query from an id-only table reference and loaded metadata", () => {
       expect(
         createDatasetQuery({
-          tableId: TEST_SCHEMA.tables.orders.id,
+          table: { id: TEST_SCHEMA.tables.orders.id },
+        }),
+      ).toEqual(queryObject({}));
+    });
+
+    it("rejects semantic options with an id-only table reference", () => {
+      expect(() =>
+        createDatasetQuery({
+          table: { id: TEST_SCHEMA.tables.orders.id },
           filters: [
             filter(TEST_SCHEMA.tables.orders.fields.status, "=", "paid"),
           ],
-          breakouts: [breakout(TEST_SCHEMA.tables.orders.fields.createdAt)],
         }),
-      ).toEqual(expectedOrdersQuery);
+      ).toThrow(
+        "Table query filters, measures, aggregations, and breakouts require a generated table schema object.",
+      );
+    });
+
+    it("rejects semantic options with an id-only metric reference", () => {
+      expect(() =>
+        createDatasetQuery({
+          metric: { id: TEST_SCHEMA.metrics.orderCount.id },
+          breakouts: [
+            breakout(TEST_SCHEMA.metrics.orderCount.dimensions.orders.status),
+          ],
+        }),
+      ).toThrow(
+        "Metric query filters, measures, and breakouts require a generated metric schema object.",
+      );
     });
 
     it("memoizes a complete dataset query from a generated table schema", async () => {
@@ -1186,7 +1222,7 @@ describe("useMetabaseQuery", () => {
     await waitFor(() => {
       expect(createMetabaseQueryApi).toHaveBeenCalledWith({
         query: {
-          tableId: TEST_SCHEMA.tables.orders.id,
+          table: { id: TEST_SCHEMA.tables.orders.id },
         },
       });
       expect(queryDatasetApi).toHaveBeenCalledWith({
@@ -1525,7 +1561,7 @@ const MetricQueryObjectComponent = () => {
 
 const DisabledMetricQueryObjectComponent = () => {
   const result = useMetabaseQueryObject({
-    metricId: TEST_SCHEMA.metrics.orderCount.id,
+    metric: { id: TEST_SCHEMA.metrics.orderCount.id },
     enabled: false,
   });
 
@@ -1581,7 +1617,7 @@ const TableObjectComponent = () => {
 
 const TableIdComponent = () => {
   useMetabaseQuery({
-    tableId: TEST_SCHEMA.tables.orders.id,
+    table: { id: TEST_SCHEMA.tables.orders.id },
   });
 
   return null;
@@ -1589,7 +1625,7 @@ const TableIdComponent = () => {
 
 const MetricIdComponent = () => {
   useMetabaseQuery({
-    metricId: TEST_SCHEMA.metrics.orderCount.id,
+    metric: { id: TEST_SCHEMA.metrics.orderCount.id },
   });
 
   return null;

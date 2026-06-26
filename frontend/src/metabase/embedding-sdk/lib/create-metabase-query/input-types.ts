@@ -1,7 +1,9 @@
 import type {
   FieldSchema,
+  MetricIdReference,
   MetricSchema,
   SchemaColumn,
+  TableIdReference,
   TableSchema,
 } from "embedding-sdk-shared/lib/create-metabase-query/schema";
 import type { FilterOperator as LibFilterOperator } from "metabase-lib/common";
@@ -38,12 +40,10 @@ export type QuestionQueryInput = {
 };
 
 export type TableQueryInput = {
-  table?: TableSchema;
-  tableId?: number;
+  table?: TableSchema | TableIdReference;
 
   questionId?: never;
   metric?: never;
-  metricId?: never;
 
   filters?: readonly unknown[];
   aggregations?: readonly unknown[];
@@ -54,12 +54,10 @@ export type TableQueryInput = {
 };
 
 export type MetricQueryInput = {
-  metric?: MetricReference;
-  metricId?: number;
+  metric?: MetricReference | MetricIdReference;
 
   questionId?: never;
   table?: never;
-  tableId?: never;
 
   filters?: readonly unknown[];
   measures?: readonly unknown[];

@@ -259,7 +259,7 @@ const { data } = useMetabaseQuery({
 
 Measures must come from tables in the metric's `mappedTableIds`. Fields, segments, and measures from unmapped tables are rejected by TypeScript and at runtime.
 
-`tableId` and `metricId` are runtime escape hatches for id-only or no-schema use cases. Do not use them in generated data apps unless the user explicitly asks for an id-only/no-schema prototype. They can build a base table or metric query after metadata loads, but they do not provide typed fields, metric dimensions, segments, or measures, so they are a poor fit for semantic data-app UI work.
+`table: { id }` and `metric: { id }` are runtime escape hatches for id-only or no-schema use cases. Do not use them in generated data apps unless the user explicitly asks for an id-only/no-schema prototype. They can build a base table or metric query after metadata loads, but they do not provide typed fields, metric dimensions, segments, measures, or breakouts, so they are a poor fit for semantic data-app UI work.
 
 ## Interactive Metabase Views
 
@@ -585,7 +585,7 @@ If no curated schema entry supports the intended UI, leave the section out or as
 
 - Creating or searching for Metabase content during app building.
 - Importing older hooks instead of `useMetabaseQuery`.
-- Using `tableId` or `metricId` for new schema-backed queries instead of `table: schema.tables.someTable` or `metric: schema.metrics.someMetric`.
+- Using `table: { id }` or `metric: { id }` for new schema-backed queries instead of `table: schema.tables.someTable` or `metric: schema.metrics.someMetric`.
 - Copying raw numeric IDs into constants instead of using generated `.id` values.
 - Inventing ad hoc measure objects such as `{ name: "count" }` or `{ name: "sum", field: fieldId }`.
 - Passing raw strings for metric dimensions or table fields.

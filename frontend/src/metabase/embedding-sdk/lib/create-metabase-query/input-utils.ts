@@ -1,8 +1,5 @@
 import { isTableFieldSchema } from "embedding-sdk-shared/lib/create-metabase-query/input-guards";
-import type {
-  FieldSchema,
-  TableSchema,
-} from "embedding-sdk-shared/lib/create-metabase-query/schema";
+import type { FieldSchema } from "embedding-sdk-shared/lib/create-metabase-query/schema";
 import { isNumber } from "metabase/utils/types";
 import { isObject } from "metabase-types/guards";
 
@@ -22,12 +19,9 @@ type MetricWithDimensions = {
   dimensions: MetricDimensions;
 };
 
-export const getTableFromInput = (input: TableQueryInput): TableSchema | null =>
-  isObject(input.table) ? (input.table as TableSchema) : null;
-
 export const isMetricQueryInput = (
   input: TableQueryInput | MetricQueryInput,
-): input is MetricQueryInput => "metric" in input || "metricId" in input;
+): input is MetricQueryInput => "metric" in input;
 
 export function getFieldId(field: unknown): number | null {
   if (hasFieldId(field)) {

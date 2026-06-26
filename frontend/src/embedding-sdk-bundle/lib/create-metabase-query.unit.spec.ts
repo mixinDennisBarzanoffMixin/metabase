@@ -48,11 +48,11 @@ const TABLE_QUERY = {
 };
 
 const TABLE_ID_QUERY = {
-  tableId: 1,
+  table: { id: 1 },
 };
 
 const METRIC_QUERY = {
-  metricId: 34,
+  metric: { id: 34 },
 };
 
 const createMockStore = () =>
@@ -96,7 +96,7 @@ describe("createMetabaseQuery", () => {
     expect(result).toBe(DATASET_QUERY);
   });
 
-  it("loads table query metadata for tableId queries", async () => {
+  it("loads table query metadata for id-only table references", async () => {
     const store = createMockStore();
 
     const result = await createMetabaseQuery(store)({

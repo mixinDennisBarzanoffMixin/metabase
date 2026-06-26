@@ -361,8 +361,6 @@ export type MetabaseMetricDimensionFilter =
 export type QuestionQuery<TQuestion> = {
   questionId: SdkQuestionId;
   table?: never;
-  tableId?: never;
-  metricId?: never;
   metric?: never;
   parameters?: TQuestion extends QuestionSchema
     ? SqlParameterValues
@@ -370,17 +368,24 @@ export type QuestionQuery<TQuestion> = {
   enabled?: boolean;
 };
 
-type TableReference<TTable> = TTable extends TableSchema
-  ?
-      | { table: TTable; tableId?: never }
-      | { table?: never; tableId: TableId<TTable> }
-  :
-      | { table: TableSchema; tableId?: never }
-      | { table?: never; tableId: number };
+type TableIdReference<TTableId extends number = number> = {
+  id: TTableId;
+};
 
-export type TableQuery<TTable> = TableReference<TTable> & {
+type MetricIdReference = {
+  id: number;
+};
+
+type IdOnlySemanticOptions = {
+  filters?: never;
+  aggregations?: never;
+  measures?: never;
+  breakouts?: never;
+};
+
+type GeneratedTableQuery<TTable extends TableSchema> = {
+  table: TTable;
   questionId?: never;
-  metricId?: never;
   metric?: never;
   filters?: TTable extends TableSchema
     ? readonly (
@@ -403,16 +408,21 @@ export type TableQuery<TTable> = TableReference<TTable> & {
   enabled?: boolean;
 };
 
-type MetricReferenceInput<TMetric> = TMetric extends MetricReference
-  ? { metric: MetricReference<MappedTableId<TMetric>>; metricId?: never }
-  :
-      | { metric: MetricReference; metricId?: never }
-      | { metric?: never; metricId: number };
+type TableIdQuery<TTableId extends number = number> = {
+  table: TableIdReference<TTableId>;
+  questionId?: never;
+  metric?: never;
+  enabled?: boolean;
+} & IdOnlySemanticOptions;
 
-export type MetricQuery<TMetric> = MetricReferenceInput<TMetric> & {
+export type TableQuery<TTable> = TTable extends TableSchema
+  ? GeneratedTableQuery<TTable>
+  : GeneratedTableQuery<TableSchema> | TableIdQuery<TableId<TTable>>;
+
+type GeneratedMetricQuery<TMetric extends MetricReference> = {
+  metric: MetricReference<MappedTableId<TMetric>>;
   questionId?: never;
   table?: never;
-  tableId?: never;
   filters?: TMetric extends MetricReference
     ? readonly (
         | SegmentForMetric<TMetric>
@@ -427,6 +437,17 @@ export type MetricQuery<TMetric> = MetricReferenceInput<TMetric> & {
     : readonly MetabaseBreakout[];
   enabled?: boolean;
 };
+
+type MetricIdQuery = {
+  metric: MetricIdReference;
+  questionId?: never;
+  table?: never;
+  enabled?: boolean;
+} & IdOnlySemanticOptions;
+
+export type MetricQuery<TMetric> = TMetric extends MetricReference
+  ? GeneratedMetricQuery<TMetric>
+  : GeneratedMetricQuery<MetricReference> | MetricIdQuery;
 
 /**
  * @notExported MeasureReference
