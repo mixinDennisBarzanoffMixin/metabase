@@ -358,7 +358,12 @@ export function useMetabaseQueryObject(
   queryRef.current = query;
 
   useEffect(() => {
-    if (!createQuery || !reduxStore || loginStatus?.status !== "success") {
+    if (
+      queryRef.current.enabled === false ||
+      !createQuery ||
+      !reduxStore ||
+      loginStatus?.status !== "success"
+    ) {
       setMetadataDatasetQuery(null);
       setIsLoading(false);
       setMetadataQueryError(null);

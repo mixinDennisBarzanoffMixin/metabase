@@ -14,7 +14,7 @@ Keep the semantic layer and presentation layer separate.
 - Use `useMetabaseQuery`, `useMetabaseQueryObject`, `filter(...)`, and `breakout(...)` from `@metabase/embedding-sdk-react/data-app`.
 - Data apps must install the published data-app SDK tag: `npm install @metabase/embedding-sdk-react@63-data-apps`.
 - Prefer generated schema objects over raw IDs or strings. Extract local constants for top-level semantic objects.
-- Never hand-write `DatasetQuery`/MBQL objects in app code. Do not pass inline query objects like `{ type: "query", query: { "source-table": table.id } }`, raw `source-table` clauses, raw field IDs, or table/metric IDs to `InteractiveQuestion`, `StaticQuestion`, `useMetabaseQuery`, or `useMetabaseQueryObject`. Build queries from generated schema objects instead.
+- Never hand-write `DatasetQuery`/MBQL objects in app code. Do not pass inline query objects like `{ type: "query", query: { "source-table": table.id } }`, raw `source-table` clauses, or raw field IDs to `InteractiveQuestion`, `StaticQuestion`, `useMetabaseQuery`, or `useMetabaseQueryObject`. Build schema-backed data-app queries from generated schema objects instead.
 - Prefer semantically rich queries over shallow table dumps. Use curated metrics, table measures, segments, filters, and breakouts when they make the generated app more useful.
 - Prefer semantic-layer definitions over React-side inference. If the schema has a segment or measure for a concept, use it in the query instead of manually recreating the concept from raw rows.
 - Filter UI must default to showing data. Empty controls, "All" options, and incomplete custom ranges should produce no filter instead of blocking queries or showing a blank dashboard.
@@ -258,6 +258,8 @@ const { data } = useMetabaseQuery({
 ```
 
 Measures must come from tables in the metric's `mappedTableIds`. Fields, segments, and measures from unmapped tables are rejected by TypeScript and at runtime.
+
+`tableId` and `metricId` are runtime escape hatches for id-only or no-schema use cases. Do not use them in generated data apps unless the user explicitly asks for an id-only/no-schema prototype. They can build a base table or metric query after metadata loads, but they do not provide typed fields, metric dimensions, segments, or measures, so they are a poor fit for semantic data-app UI work.
 
 ## Interactive Metabase Views
 
@@ -583,7 +585,7 @@ If no curated schema entry supports the intended UI, leave the section out or as
 
 - Creating or searching for Metabase content during app building.
 - Importing older hooks instead of `useMetabaseQuery`.
-- Using `metricId` for new metric queries instead of `metric: schema.metrics.someMetric`.
+- Using `tableId` or `metricId` for new schema-backed queries instead of `table: schema.tables.someTable` or `metric: schema.metrics.someMetric`.
 - Copying raw numeric IDs into constants instead of using generated `.id` values.
 - Inventing ad hoc measure objects such as `{ name: "count" }` or `{ name: "sum", field: fieldId }`.
 - Passing raw strings for metric dimensions or table fields.

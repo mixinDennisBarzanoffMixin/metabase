@@ -463,6 +463,10 @@ const _validTableIdQuery = {
   tableId: TEST_SCHEMA.tables.orders.id,
 } satisfies MetabaseQueryOptions;
 
+const _validMetricIdQuery = {
+  metricId: TEST_SCHEMA.metrics.orderCount.id,
+} satisfies MetabaseQueryOptions;
+
 const _invalidTableAggregationQuery = {
   table: TEST_SCHEMA.tables.orders,
   aggregations: [
@@ -1191,6 +1195,29 @@ describe("useMetabaseQuery", () => {
     });
   });
 
+  it("queries metric ids via the dataset endpoint", async () => {
+    const queryDatasetApi = jest.fn().mockResolvedValue({
+      rowCount: null,
+      runningTime: null,
+      columns: [],
+      rows: [],
+    });
+    const queryDataset = jest.fn(() => queryDatasetApi);
+
+    setup({
+      queryDataset,
+      component: <MetricIdComponent />,
+    });
+
+    await waitFor(() => {
+      expect(queryDatasetApi).toHaveBeenCalledWith({
+        datasetQuery: queryObject({
+          aggregation: [["metric", mbqlOptions(), 34]],
+        }),
+      });
+    });
+  });
+
   it("queries generated table objects via a memoized dataset query object", async () => {
     const queryDatasetApi = jest.fn().mockResolvedValue({
       rowCount: null,
@@ -1388,6 +1415,27 @@ describe("useMetabaseQuery", () => {
     });
   });
 
+  it("does not build query objects when disabled", async () => {
+    const createMetabaseQuery = jest.fn(
+      () => async () => queryObject({ aggregation: [["metric", {}, 34]] }),
+    );
+
+    setup({
+      createMetabaseQuery,
+      component: <DisabledMetricQueryObjectComponent />,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("query-object")).toHaveTextContent("null");
+    });
+
+    expect(createMetabaseQuery).not.toHaveBeenCalled();
+    expect(screen.getByTestId("query-object-loading")).toHaveTextContent(
+      "false",
+    );
+    expect(screen.getByTestId("query-object-error")).toBeEmptyDOMElement();
+  });
+
   it("builds generated source-card metric query objects on the dataset query path", async () => {
     setup({ component: <SourceCardMetricQueryObjectComponent /> });
 
@@ -1475,6 +1523,15 @@ const MetricQueryObjectComponent = () => {
   return <QueryObjectResult result={result} />;
 };
 
+const DisabledMetricQueryObjectComponent = () => {
+  const result = useMetabaseQueryObject({
+    metricId: TEST_SCHEMA.metrics.orderCount.id,
+    enabled: false,
+  });
+
+  return <QueryObjectResult result={result} />;
+};
+
 const SourceCardMetricQueryObjectComponent = () => {
   const result = useMetabaseQueryObject({
     metric: TEST_SCHEMA.metrics.orderCountFromModel,
@@ -1525,6 +1582,14 @@ const TableObjectComponent = () => {
 const TableIdComponent = () => {
   useMetabaseQuery({
     tableId: TEST_SCHEMA.tables.orders.id,
+  });
+
+  return null;
+};
+
+const MetricIdComponent = () => {
+  useMetabaseQuery({
+    metricId: TEST_SCHEMA.metrics.orderCount.id,
   });
 
   return null;

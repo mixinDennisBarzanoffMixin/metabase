@@ -403,14 +403,16 @@ export type TableQuery<TTable> = TableReference<TTable> & {
   enabled?: boolean;
 };
 
-export type MetricQuery<TMetric> = {
-  metric: TMetric extends MetricReference
-    ? MetricReference<MappedTableId<TMetric>>
-    : MetricReference;
+type MetricReferenceInput<TMetric> = TMetric extends MetricReference
+  ? { metric: MetricReference<MappedTableId<TMetric>>; metricId?: never }
+  :
+      | { metric: MetricReference; metricId?: never }
+      | { metric?: never; metricId: number };
+
+export type MetricQuery<TMetric> = MetricReferenceInput<TMetric> & {
   questionId?: never;
   table?: never;
   tableId?: never;
-  metricId?: never;
   filters?: TMetric extends MetricReference
     ? readonly (
         | SegmentForMetric<TMetric>
