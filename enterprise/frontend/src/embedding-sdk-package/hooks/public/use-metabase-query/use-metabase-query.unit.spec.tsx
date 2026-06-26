@@ -293,6 +293,52 @@ const TEST_METADATA = {
       table_id: 1,
     },
   },
+  questions: {
+    34: {
+      id: 34,
+      name: "Order Count",
+      display: "scalar",
+      type: "metric",
+      dataset_query: {
+        type: "query",
+        database: 1,
+        query: { "source-table": 1 },
+      },
+    },
+    35: {
+      id: 35,
+      name: "Order Value",
+      display: "scalar",
+      type: "metric",
+      dataset_query: {
+        type: "query",
+        database: 1,
+        query: { "source-table": 1 },
+      },
+    },
+    36: {
+      id: 36,
+      name: "Order Count From Model",
+      display: "scalar",
+      type: "metric",
+      dataset_query: {
+        type: "query",
+        database: 1,
+        query: { "source-table": "card__98" },
+      },
+    },
+    98: {
+      id: 98,
+      name: "Orders Model",
+      display: "table",
+      type: "model",
+      dataset_query: {
+        type: "query",
+        database: 1,
+        query: { "source-table": 1 },
+      },
+    },
+  },
 };
 
 const createDatasetQuery = (

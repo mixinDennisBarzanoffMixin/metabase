@@ -1,42 +1,7 @@
-import {
-  getMetricIdFromInput,
-  getMetricSourceCardIdFromInput,
-  getMetricSourceIdFromInput,
-  getMetricSourceTableIdFromInput,
-} from "embedding-sdk-shared/lib/create-metabase-query/input-accessors";
-import { isTableFieldSchema } from "embedding-sdk-shared/lib/create-metabase-query/input-guards";
-import type {
-  FieldSchema,
-  SegmentSchema,
-  TableSchema,
-} from "embedding-sdk-shared/lib/create-metabase-query/schema";
 import type { Metadata as MetadataInput, Query } from "metabase-lib";
 import * as Lib from "metabase-lib";
 import { getQuestionVirtualTableId } from "metabase-lib/v1/metadata/utils/saved-questions";
 import type { TableId } from "metabase-types/api";
-
-import {
-  isDimensionFilter,
-  isFieldAggregation,
-  isMeasureSchema,
-  isSegmentSchema,
-} from "../guards";
-import type {
-  MeasureReferenceInput,
-  MetricQueryInput,
-  TableQueryInput,
-} from "../input-types";
-import {
-  getFieldId,
-  getMetricDimensionValues,
-  isMetricDimensionWithFieldId,
-  normalizeBreakout,
-} from "../input-utils";
-
-import { getFieldBaseType, getFieldEffectiveType } from "./query-utils";
-
-type SyntheticTableMetadataSource = Omit<TableSchema, "id"> & { id: TableId };
-type QueryMetadataInput = TableQueryInput | MetricQueryInput;
 
 export function createLibQuery(
   metadata: MetadataInput,
@@ -53,13 +18,6 @@ export function createLibQuery(
   return Lib.queryFromTableOrCardMetadata(provider, table);
 }
 
-// -------------
-// TODO(EMB-1947): synthetic metadata remains for metric queries.
-//
-// Table queries use runtime query_metadata. Metric queries still need a runtime
-// metadata path before this scaffold can go away.
-// -------------
-
 export function getDatabaseIdFromMetadata(
   metadata: MetadataInput,
   tableId: TableId,
@@ -70,37 +28,21 @@ export function getDatabaseIdFromMetadata(
   return typeof databaseId === "number" ? databaseId : null;
 }
 
-function createSyntheticTableMetadata(
-  table: SyntheticTableMetadataSource,
-  databaseId: number,
-  query?: QueryMetadataInput,
-): MetadataInput {
-  const fields = getTableFields(table, query);
-  const segments = getTableSegments(table, query);
-  const measures = getTableMeasures(table, query);
+export function getMetricQuerySourceFromMetadata(
+  metadata: MetadataInput,
+  metricId: number,
+): { databaseId: number; sourceId: TableId } | null {
+  const datasetQuery = getQuestionDatasetQuery(metadata, metricId);
 
-  return {
-    databases: { [databaseId]: createSyntheticDatabaseMetadata(databaseId) },
-    tables: { [table.id]: createTableMetadataRecord(table, databaseId) },
-    fields: Object.fromEntries(
-      fields.map((field, index) => [
-        getFieldId(field),
-        createFieldMetadataRecord(field, table.id, index),
-      ]),
-    ),
-    segments: Object.fromEntries(
-      segments.map((segment) => [
-        segment.id,
-        createSegmentMetadataRecord(segment, table.id),
-      ]),
-    ),
-    measures: Object.fromEntries(
-      measures.map((measure) => [
-        measure.id,
-        createMeasureMetadataRecord(measure, table.id),
-      ]),
-    ),
-  };
+  if (!isStructuredDatasetQuery(datasetQuery)) {
+    return null;
+  }
+
+  const sourceId = getQuerySourceId(datasetQuery.query);
+
+  return sourceId == null
+    ? null
+    : { databaseId: datasetQuery.database, sourceId };
 }
 
 type TableMetadataRecord = {
@@ -127,227 +69,82 @@ const getTableMetadataRecord = (
   );
 };
 
-export function createSyntheticMetricMetadata(
-  input: MetricQueryInput,
-  databaseId: number,
-): MetadataInput {
-  const metricId = Number(getMetricIdFromInput(input));
-  const sourceId = getMetricSourceIdFromInput(input);
+type StructuredDatasetQueryRecord = {
+  type: "query";
+  database: number;
+  query: Record<string, unknown>;
+};
 
-  const sourceTableId = getMetricSourceTableIdFromInput(input);
-  const sourceCardId = getMetricSourceCardIdFromInput(input);
+function getQuestionDatasetQuery(
+  metadata: MetadataInput,
+  cardId: number,
+): unknown {
+  const question = getQuestionMetadataRecord(metadata, cardId);
 
-  const fields = getMetricDimensionValues(
-    input.metric,
-    isMetricDimensionWithFieldId,
-  );
-
-  if (sourceId == null) {
-    throw new Error(
-      "Metric metadata creation requires a sourceTableId or sourceCardId.",
-    );
+  if (!isRecord(question)) {
+    return null;
   }
 
-  const table = {
-    id: sourceId,
-    databaseId,
-    fields: Object.fromEntries(
-      fields.map((field) => [String(getFieldId(field)), field]),
-    ),
-  };
+  if (
+    "datasetQuery" in question &&
+    typeof question.datasetQuery === "function"
+  ) {
+    return question.datasetQuery();
+  }
 
-  const measures = Object.fromEntries(
-    input.measures
-      ?.filter(isMeasureSchema)
-      .map((measure) => [
-        measure.id,
-        createMeasureMetadataRecord(measure, measure.tableId),
-      ]) ?? [],
-  );
+  if ("dataset_query" in question) {
+    return question.dataset_query;
+  }
 
-  const questionMetadata =
-    sourceCardId == null
-      ? {}
-      : {
-          [sourceCardId]: createQuestionMetadataRecord(
-            Number(sourceCardId),
-            databaseId,
-          ),
-        };
+  if ("_card" in question && isRecord(question._card)) {
+    return question._card.dataset_query;
+  }
 
-  return {
-    ...createSyntheticTableMetadata(table, databaseId, input),
-    questions: {
-      [metricId]: createMetricCardMetadataRecord({
-        metricId,
-        databaseId,
-        sourceTableId: sourceTableId == null ? null : Number(sourceTableId),
-        sourceCardId: sourceCardId == null ? null : Number(sourceCardId),
-      }),
-      ...questionMetadata,
-    },
-    measures,
-  };
+  return null;
 }
 
-const createSyntheticDatabaseMetadata = (databaseId: number) => ({
-  id: databaseId,
-  name: `Database ${databaseId}`,
-  features: ["basic-aggregations", "binning", "expressions"],
-});
+function getQuestionMetadataRecord(
+  metadata: MetadataInput,
+  cardId: number,
+): unknown {
+  const metadataWithQuestions = metadata as {
+    questions?: Record<string | number, unknown>;
+    question?: (id: number) => unknown;
+  };
 
-const createTableMetadataRecord = (
-  table: SyntheticTableMetadataSource,
-  databaseId: number,
-) => ({
-  id: table.id,
-  db_id: databaseId,
-  display_name: `Table ${table.id}`,
-  name: `table_${table.id}`,
-});
-
-const createFieldMetadataRecord = (
-  field: FieldSchema,
-  tableId: TableId,
-  index: number,
-) => ({
-  id: getFieldId(field) ?? index,
-  table_id: tableId,
-  name: field.name,
-  display_name: field.displayName ?? field.name,
-  description: field.description ?? null,
-  base_type: getFieldBaseType(field),
-  effective_type: getFieldEffectiveType(field),
-  position: index,
-});
-
-const createSegmentMetadataRecord = (
-  segment: SegmentSchema,
-  tableId: TableId,
-) => ({
-  ...segment,
-  name: `Segment ${segment.id}`,
-  table_id: tableId,
-});
-
-const createMeasureMetadataRecord = (
-  measure: MeasureReferenceInput,
-  tableId: TableId,
-) => ({
-  ...measure,
-  name: `Measure ${measure.id}`,
-  table_id: tableId,
-});
-
-const createQuestionMetadataRecord = (cardId: number, databaseId: number) => ({
-  id: cardId,
-  name: `Question ${cardId}`,
-  display: "table",
-  type: "question",
-  dataset_query: {
-    type: "query",
-    database: databaseId,
-    query: { "source-table": getQuestionVirtualTableId(cardId) },
-  },
-});
-
-const createMetricCardMetadataRecord = ({
-  metricId,
-  databaseId,
-  sourceTableId,
-  sourceCardId,
-}: {
-  metricId: number;
-  databaseId: number;
-  sourceTableId: number | null;
-  sourceCardId: number | null;
-}) => ({
-  id: metricId,
-  name: `Metric ${metricId}`,
-  display: "scalar",
-  type: "metric",
-  table_id: sourceTableId,
-  source_card_id: sourceCardId,
-  archived: false,
-  dataset_query: {
-    type: "query",
-    database: databaseId,
-    query: {
-      "source-table":
-        sourceTableId == null
-          ? getQuestionVirtualTableId(sourceCardId)
-          : sourceTableId,
-    },
-  },
-});
-
-const getTableFields = (
-  table: SyntheticTableMetadataSource,
-  query?: QueryMetadataInput,
-): FieldSchema[] =>
-  getUniqueFields([
-    ...Object.values(table.fields ?? {}).filter(hasFieldReferenceId),
-    ...getQueryFieldReferences(query),
-  ]);
-
-const getTableSegments = (
-  table: SyntheticTableMetadataSource,
-  query?: QueryMetadataInput,
-): SegmentSchema[] =>
-  getUniqueById([
-    ...Object.values(table.segments ?? {}),
-    ...(query?.filters?.filter(isSegmentSchema) ?? []),
-  ]);
-
-const getTableMeasures = (
-  table: SyntheticTableMetadataSource,
-  query?: QueryMetadataInput,
-): MeasureReferenceInput[] =>
-  getUniqueById([
-    ...Object.values(table.measures ?? {}),
-    ...getQueryAggregations(query).filter(isMeasureSchema),
-  ]);
-
-function getQueryFieldReferences(query?: QueryMetadataInput): FieldSchema[] {
-  const filterFields =
-    query?.filters?.flatMap((filter) =>
-      isDimensionFilter(filter) && isTableFieldSchema(filter.dimension)
-        ? [filter.dimension]
-        : [],
-    ) ?? [];
-
-  const aggregationFields = getQueryAggregations(query).flatMap((aggregation) =>
-    isFieldAggregation(aggregation) && isTableFieldSchema(aggregation.dimension)
-      ? [aggregation.dimension]
-      : [],
-  );
-
-  const breakoutFields =
-    query?.breakouts?.flatMap((breakout) => {
-      const { dimension } = normalizeBreakout(breakout);
-
-      return dimension && isTableFieldSchema(dimension) ? [dimension] : [];
-    }) ?? [];
-
-  return [...filterFields, ...aggregationFields, ...breakoutFields].filter(
-    hasFieldReferenceId,
+  return (
+    metadataWithQuestions.question?.(cardId) ??
+    metadataWithQuestions.questions?.[cardId] ??
+    metadataWithQuestions.questions?.[String(cardId)] ??
+    null
   );
 }
 
-const getQueryAggregations = (query?: QueryMetadataInput): readonly unknown[] =>
-  query == null
-    ? []
-    : "aggregations" in query
-      ? (query.aggregations ?? query.measures ?? [])
-      : (query.measures ?? []);
-
-const getUniqueById = <T extends { id: number }>(items: readonly T[]): T[] =>
-  Array.from(new Map(items.map((item) => [item.id, item])).values());
-
-const getUniqueFields = (fields: readonly FieldSchema[]): FieldSchema[] =>
-  Array.from(
-    new Map(fields.map((field) => [getFieldId(field), field])).values(),
+function isStructuredDatasetQuery(
+  query: unknown,
+): query is StructuredDatasetQueryRecord {
+  return (
+    isRecord(query) &&
+    query.type === "query" &&
+    typeof query.database === "number" &&
+    isRecord(query.query)
   );
+}
 
-const hasFieldReferenceId = (field: FieldSchema): boolean =>
-  getFieldId(field) !== null;
+function getQuerySourceId(query: Record<string, unknown>): TableId | null {
+  const sourceTable = query["source-table"];
+
+  if (typeof sourceTable === "number" || typeof sourceTable === "string") {
+    return sourceTable;
+  }
+
+  const sourceCardId = query["source-card"];
+
+  return typeof sourceCardId === "number"
+    ? getQuestionVirtualTableId(sourceCardId)
+    : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}

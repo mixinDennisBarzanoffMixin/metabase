@@ -1,11 +1,14 @@
-import { getTableIdFromInput } from "embedding-sdk-shared/lib/create-metabase-query/input-accessors";
+import {
+  getMetricIdFromInput,
+  getTableIdFromInput,
+} from "embedding-sdk-shared/lib/create-metabase-query/input-accessors";
 import type { Metadata as MetadataInput } from "metabase-lib";
 import type { DatasetQuery } from "metabase-types/api";
 
 import type { MetricQueryInput, TableQueryInput } from "./input-types";
 import { isMetricQueryInput } from "./input-utils";
 import {
-  buildMetricDatasetQueryFromInput,
+  buildMetricDatasetQueryFromMetadata,
   buildTableDatasetQueryFromMetadata,
 } from "./lib-adapter/builder";
 import {
@@ -14,29 +17,27 @@ import {
   validateTableScopedInputs,
 } from "./validation";
 
-export type CreateMetabaseQuery = (input: MetricQueryInput) => DatasetQuery;
-
 export type CreateMetabaseQueryFromMetadata = (
   input: TableQueryInput | MetricQueryInput,
   metadata: MetadataInput,
 ) => DatasetQuery;
 
-export const createMetabaseQuery: CreateMetabaseQuery = (input) => {
-  const datasetQuery = buildValidatedMetricQueryFromInput(input);
-
-  if (datasetQuery) {
-    return datasetQuery;
-  }
-
-  throw new Error(
-    "Metric query object creation requires the metric's generated schema.",
-  );
-};
-
 export const createMetabaseQueryFromMetadata: CreateMetabaseQueryFromMetadata =
   (input: TableQueryInput | MetricQueryInput, metadata: MetadataInput) => {
     if (isMetricQueryInput(input)) {
-      return createMetabaseQuery(input);
+      const datasetQuery = buildValidatedMetricQueryFromMetadata(
+        input,
+        metadata,
+      );
+
+      if (datasetQuery) {
+        return datasetQuery;
+      }
+
+      throw new Error(
+        // eslint-disable-next-line metabase/no-literal-metabase-strings -- Internal SDK developer error.
+        "Metric query object creation requires loaded Metabase metadata.",
+      );
     }
 
     const datasetQuery = buildValidatedTableQueryFromMetadata(input, metadata);
@@ -71,11 +72,18 @@ function buildValidatedTableQueryFromMetadata(
   return buildTableDatasetQueryFromMetadata(input, metadata);
 }
 
-function buildValidatedMetricQueryFromInput(
+function buildValidatedMetricQueryFromMetadata(
   input: MetricQueryInput,
+  metadata: MetadataInput,
 ): DatasetQuery | null {
+  const metricId = getMetricIdFromInput(input);
+
+  if (metricId == null) {
+    return null;
+  }
+
   validateMetricTableScopedInputs(input);
   validateMetricGeneratedDimensions(input);
 
-  return buildMetricDatasetQueryFromInput(input);
+  return buildMetricDatasetQueryFromMetadata(input, metadata);
 }

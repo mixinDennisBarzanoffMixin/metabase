@@ -1,16 +1,17 @@
 import type { SdkStore } from "embedding-sdk-bundle/store/types";
-import {
-  createMetabaseQuery as createMetabaseQueryFromGeneratedSchema,
-  createMetabaseQueryFromMetadata,
-} from "metabase/embedding-sdk/lib/create-metabase-query";
+import { createMetabaseQueryFromMetadata } from "metabase/embedding-sdk/lib/create-metabase-query";
+import { fetchCardQueryMetadata } from "metabase/redux/cards";
 import { fetchTableMetadata } from "metabase/redux/tables";
 import { getMetadata } from "metabase/selectors/metadata";
 
 import { createMetabaseQuery } from "./create-metabase-query";
 
 jest.mock("metabase/embedding-sdk/lib/create-metabase-query", () => ({
-  createMetabaseQuery: jest.fn(),
   createMetabaseQueryFromMetadata: jest.fn(),
+}));
+
+jest.mock("metabase/redux/cards", () => ({
+  fetchCardQueryMetadata: jest.fn(),
 }));
 
 jest.mock("metabase/redux/tables", () => ({
@@ -21,17 +22,17 @@ jest.mock("metabase/selectors/metadata", () => ({
   getMetadata: jest.fn(),
 }));
 
-const createMetabaseQueryFromGeneratedSchemaMock =
-  createMetabaseQueryFromGeneratedSchema as jest.Mock;
-
 const createMetabaseQueryFromMetadataMock =
   createMetabaseQueryFromMetadata as jest.Mock;
 
+const fetchCardQueryMetadataMock =
+  fetchCardQueryMetadata as unknown as jest.Mock;
 const fetchTableMetadataMock = fetchTableMetadata as unknown as jest.Mock;
 const getMetadataMock = getMetadata as unknown as jest.Mock;
 
 const STATE = {};
 const METADATA = {};
+const FETCH_CARD_QUERY_METADATA_ACTION = {};
 const FETCH_TABLE_METADATA_ACTION = {};
 const DATASET_QUERY = {
   type: "query",
@@ -50,6 +51,10 @@ const TABLE_ID_QUERY = {
   tableId: 1,
 };
 
+const METRIC_QUERY = {
+  metricId: 34,
+};
+
 const createMockStore = () =>
   ({
     dispatch: jest.fn().mockResolvedValue(undefined),
@@ -60,10 +65,12 @@ describe("createMetabaseQuery", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    fetchCardQueryMetadataMock.mockReturnValue(
+      FETCH_CARD_QUERY_METADATA_ACTION,
+    );
     fetchTableMetadataMock.mockReturnValue(FETCH_TABLE_METADATA_ACTION);
     getMetadataMock.mockReturnValue(METADATA);
     createMetabaseQueryFromMetadataMock.mockReturnValue(DATASET_QUERY);
-    createMetabaseQueryFromGeneratedSchemaMock.mockReturnValue(DATASET_QUERY);
   });
 
   it("loads table query metadata before building a table dataset query", async () => {
@@ -123,20 +130,43 @@ describe("createMetabaseQuery", () => {
     );
   });
 
-  it("keeps non-table queries on the existing builder path", async () => {
+  it("loads metric query metadata before building a metric dataset query", async () => {
     const store = createMockStore();
-    const metricQuery = { metricId: 34 };
 
     const result = await createMetabaseQuery(store)({
-      query: metricQuery,
+      query: METRIC_QUERY,
     });
 
     expect(fetchTableMetadata).not.toHaveBeenCalled();
+    expect(fetchCardQueryMetadata).toHaveBeenCalledWith(
+      { id: 34 },
+      { reload: false },
+    );
 
-    expect(createMetabaseQueryFromGeneratedSchema).toHaveBeenCalledWith(
-      metricQuery,
+    expect(store.dispatch).toHaveBeenCalledWith(
+      FETCH_CARD_QUERY_METADATA_ACTION,
+    );
+    expect(getMetadata).toHaveBeenCalledWith(STATE);
+
+    expect(createMetabaseQueryFromMetadata).toHaveBeenCalledWith(
+      METRIC_QUERY,
+      METADATA,
     );
 
     expect(result).toBe(DATASET_QUERY);
+  });
+
+  it("reloads metric query metadata when requested", async () => {
+    const store = createMockStore();
+
+    await createMetabaseQuery(store)({
+      query: METRIC_QUERY,
+      reloadMetadata: true,
+    });
+
+    expect(fetchCardQueryMetadata).toHaveBeenCalledWith(
+      { id: 34 },
+      { reload: true },
+    );
   });
 });
