@@ -807,6 +807,22 @@ describe("useMetabaseQuery", () => {
       );
     });
 
+    it("rejects semantic options with a partial table reference", () => {
+      expect(() =>
+        createDatasetQuery({
+          table: {
+            id: TEST_SCHEMA.tables.orders.id,
+            databaseId: TEST_SCHEMA.tables.orders.databaseId,
+          },
+          filters: [
+            filter(TEST_SCHEMA.tables.orders.fields.status, "=", "paid"),
+          ],
+        }),
+      ).toThrow(
+        "Table query filters, measures, aggregations, and breakouts require a generated table schema object.",
+      );
+    });
+
     it("rejects semantic options with an id-only metric reference", () => {
       expect(() =>
         createDatasetQuery({
@@ -814,6 +830,20 @@ describe("useMetabaseQuery", () => {
           breakouts: [
             breakout(TEST_SCHEMA.metrics.orderCount.dimensions.orders.status),
           ],
+        }),
+      ).toThrow(
+        "Metric query filters, measures, and breakouts require a generated metric schema object.",
+      );
+    });
+
+    it("rejects semantic options with a partial metric reference", () => {
+      expect(() =>
+        createDatasetQuery({
+          metric: {
+            id: TEST_SCHEMA.metrics.orderCount.id,
+            mappedTableIds: TEST_SCHEMA.metrics.orderCount.mappedTableIds,
+          },
+          measures: [TEST_SCHEMA.tables.orders.measures.revenue],
         }),
       ).toThrow(
         "Metric query filters, measures, and breakouts require a generated metric schema object.",
