@@ -33,16 +33,14 @@ export function getMetricQuerySourceFromMetadata(
   metricId: number,
 ): { databaseId: number; sourceId: TableId } | null {
   const datasetQuery = getQuestionDatasetQuery(metadata, metricId);
+  const databaseId = getDatasetQueryDatabaseId(datasetQuery);
+  const sourceId = getDatasetQuerySourceId(datasetQuery);
 
-  if (!isStructuredDatasetQuery(datasetQuery)) {
+  if (databaseId == null || sourceId == null) {
     return null;
   }
 
-  const sourceId = getQuerySourceId(datasetQuery.query);
-
-  return sourceId == null
-    ? null
-    : { databaseId: datasetQuery.database, sourceId };
+  return { databaseId, sourceId };
 }
 
 type TableMetadataRecord = {
@@ -73,6 +71,12 @@ type StructuredDatasetQueryRecord = {
   type: "query";
   database: number;
   query: Record<string, unknown>;
+};
+
+type MlV2DatasetQueryRecord = {
+  "lib/type": "mbql/query";
+  database: number;
+  stages: readonly unknown[];
 };
 
 function getQuestionDatasetQuery(
@@ -131,14 +135,50 @@ function isStructuredDatasetQuery(
   );
 }
 
-function getQuerySourceId(query: Record<string, unknown>): TableId | null {
-  const sourceTable = query["source-table"];
+function isMlV2DatasetQuery(query: unknown): query is MlV2DatasetQueryRecord {
+  return (
+    isRecord(query) &&
+    query["lib/type"] === "mbql/query" &&
+    typeof query.database === "number" &&
+    Array.isArray(query.stages)
+  );
+}
+
+function getDatasetQueryDatabaseId(datasetQuery: unknown): number | null {
+  if (
+    isStructuredDatasetQuery(datasetQuery) ||
+    isMlV2DatasetQuery(datasetQuery)
+  ) {
+    return datasetQuery.database;
+  }
+
+  return null;
+}
+
+function getDatasetQuerySourceId(datasetQuery: unknown): TableId | null {
+  if (isStructuredDatasetQuery(datasetQuery)) {
+    return getQuerySourceId(datasetQuery.query);
+  }
+
+  if (isMlV2DatasetQuery(datasetQuery)) {
+    const firstStage = datasetQuery.stages[0];
+
+    return isRecord(firstStage) ? getQuerySourceId(firstStage) : null;
+  }
+
+  return null;
+}
+
+function getQuerySourceId(
+  queryOrStage: Record<string, unknown>,
+): TableId | null {
+  const sourceTable = queryOrStage["source-table"];
 
   if (typeof sourceTable === "number" || typeof sourceTable === "string") {
     return sourceTable;
   }
 
-  const sourceCardId = query["source-card"];
+  const sourceCardId = queryOrStage["source-card"];
 
   return typeof sourceCardId === "number"
     ? getQuestionVirtualTableId(sourceCardId)

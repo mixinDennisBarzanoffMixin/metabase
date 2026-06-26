@@ -194,6 +194,18 @@ const TEST_SCHEMA = {
       },
       mappedTableIds: [1],
     },
+    orderCountMlV2: {
+      id: 37,
+      databaseId: 1,
+      sourceTableId: 1,
+      columns: [{ name: "count", displayName: "Count", jsType: "number" }],
+      dimensions: {
+        orders: {
+          status: TEST_TABLES.orders.fields.status,
+        },
+      },
+      mappedTableIds: [1],
+    },
   },
 } as const;
 
@@ -325,6 +337,23 @@ const TEST_METADATA = {
         type: "query",
         database: 1,
         query: { "source-table": "card__98" },
+      },
+    },
+    37: {
+      id: 37,
+      name: "Order Count MLv2",
+      display: "scalar",
+      type: "metric",
+      dataset_query: {
+        "lib/type": "mbql/query",
+        database: 1,
+        stages: [
+          {
+            "lib/type": "mbql.stage/mbql",
+            "source-table": 1,
+            aggregation: [["count", { "lib/uuid": "metric-count" }]],
+          },
+        ],
       },
     },
     98: {
@@ -1085,6 +1114,24 @@ describe("useMetabaseQuery", () => {
           ],
           filters: [["=", mbqlOptions(), fieldRef(101), "paid"]],
           breakout: [fieldRef(103, { "temporal-unit": "month" })],
+        }),
+      );
+    });
+
+    it("builds metric breakout queries from MLv2 card metadata", () => {
+      expect(
+        createDatasetQuery({
+          metric: TEST_SCHEMA.metrics.orderCountMlV2,
+          breakouts: [
+            breakout(
+              TEST_SCHEMA.metrics.orderCountMlV2.dimensions.orders.status,
+            ),
+          ],
+        }),
+      ).toEqual(
+        queryObject({
+          aggregation: [["metric", mbqlOptions(), 37]],
+          breakout: [fieldRef(101)],
         }),
       );
     });
