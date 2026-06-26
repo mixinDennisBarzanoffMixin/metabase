@@ -6,7 +6,7 @@ import { renderWithSDKProviders } from "embedding-sdk-bundle/test/__support__/ui
 import { createMockSdkConfig } from "embedding-sdk-bundle/test/mocks/config";
 import { setupSdkState } from "embedding-sdk-bundle/test/server-mocks/sdk-init";
 import { ensureMetabaseProviderPropsStore } from "embedding-sdk-shared/lib/ensure-metabase-provider-props-store";
-import { createMetabaseQuery as createDatasetQuery } from "metabase/embedding-sdk/lib/create-metabase-query";
+import { createMetabaseQueryFromMetadata as createDatasetQueryFromMetadata } from "metabase/embedding-sdk/lib/create-metabase-query";
 
 import type { MetabaseQueryOptions } from "./use-metabase-query";
 import {
@@ -200,6 +200,104 @@ const TEST_SCHEMA = {
 type TestSchema = typeof TEST_SCHEMA;
 type OrdersTable = TestSchema["tables"]["orders"];
 type OrderCountMetric = TestSchema["metrics"]["orderCount"];
+
+const TEST_METADATA = {
+  databases: {
+    1: {
+      id: 1,
+      name: "Database 1",
+      features: ["basic-aggregations", "binning", "expressions"],
+    },
+  },
+  tables: {
+    1: {
+      id: 1,
+      db_id: 1,
+      display_name: "Orders",
+      name: "orders",
+    },
+  },
+  fields: {
+    100: {
+      id: 100,
+      table_id: 1,
+      name: "id",
+      display_name: "ID",
+      description: null,
+      base_type: "type/Number",
+      effective_type: "type/Number",
+      position: 0,
+    },
+    101: {
+      id: 101,
+      table_id: 1,
+      name: "status",
+      display_name: "Status",
+      description: null,
+      base_type: "type/Text",
+      effective_type: "type/Text",
+      position: 1,
+    },
+    102: {
+      id: 102,
+      table_id: 1,
+      name: "amount",
+      display_name: "Amount",
+      description: null,
+      base_type: "type/Number",
+      effective_type: "type/Number",
+      position: 2,
+    },
+    103: {
+      id: 103,
+      table_id: 1,
+      name: "created_at",
+      display_name: "Created At",
+      description: null,
+      base_type: "type/DateTime",
+      effective_type: "type/DateTime",
+      position: 3,
+    },
+    104: {
+      id: 104,
+      table_id: 1,
+      name: "internal_code",
+      display_name: "Internal Code",
+      description: null,
+      base_type: "type/Text",
+      effective_type: "type/Text",
+      position: 4,
+    },
+    105: {
+      id: 105,
+      table_id: 1,
+      name: "order_date",
+      display_name: "Order Date",
+      description: null,
+      base_type: "type/Date",
+      effective_type: "type/Date",
+      position: 5,
+    },
+  },
+  segments: {
+    11: {
+      ...TEST_SCHEMA.tables.orders.segments.completed,
+      name: "Segment 11",
+      table_id: 1,
+    },
+  },
+  measures: {
+    21: {
+      ...TEST_SCHEMA.tables.orders.measures.revenue,
+      name: "Measure 21",
+      table_id: 1,
+    },
+  },
+};
+
+const createDatasetQuery = (
+  query: Parameters<typeof createDatasetQueryFromMetadata>[0],
+) => createDatasetQueryFromMetadata(query, TEST_METADATA);
 
 const _validTableCustomFilterQuery = {
   table: TEST_SCHEMA.tables.orders,
@@ -583,7 +681,7 @@ describe("useMetabaseQuery", () => {
       breakout: [fieldRef(101)],
     });
 
-    it("builds a complete dataset query from a generated table schema", () => {
+    it("builds a complete dataset query from loaded table metadata", () => {
       expect(
         createDatasetQuery({
           table: TEST_SCHEMA.tables.orders,
@@ -595,13 +693,10 @@ describe("useMetabaseQuery", () => {
       ).toEqual(expectedOrdersQuery);
     });
 
-    it("builds a dataset query from minimal table metadata and referenced fields", () => {
+    it("builds a dataset query from a table id and loaded metadata", () => {
       expect(
         createDatasetQuery({
-          table: {
-            id: TEST_SCHEMA.tables.orders.id,
-            databaseId: TEST_SCHEMA.tables.orders.databaseId,
-          },
+          tableId: TEST_SCHEMA.tables.orders.id,
           filters: [
             filter(TEST_SCHEMA.tables.orders.fields.status, "=", "paid"),
           ],
@@ -805,7 +900,7 @@ describe("useMetabaseQuery", () => {
           ],
         }),
       ).toThrow(
-        "Table query object creation requires a table reference with id and databaseId.",
+        "Table query object creation requires loaded Metabase metadata.",
       );
 
       expect(() =>
@@ -820,7 +915,7 @@ describe("useMetabaseQuery", () => {
           ],
         }),
       ).toThrow(
-        "Table query object creation requires a table reference with id and databaseId.",
+        "Table query object creation requires loaded Metabase metadata.",
       );
     });
 

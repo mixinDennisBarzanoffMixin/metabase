@@ -5,7 +5,6 @@ import {
   getTableDatabaseIdFromInput,
   getTableIdFromInput,
 } from "embedding-sdk-shared/lib/create-metabase-query/input-accessors";
-import type { TableSchema } from "embedding-sdk-shared/lib/create-metabase-query/schema";
 import type { Metadata as MetadataInput, Query } from "metabase-lib";
 import * as Lib from "metabase-lib";
 import type { DatasetQuery } from "metabase-types/api";
@@ -25,31 +24,9 @@ import {
 } from "./filters";
 import {
   createLibQuery,
-  createMetricMetadata,
-  createTableMetadata,
+  createSyntheticMetricMetadata,
   getDatabaseIdFromMetadata,
 } from "./metadata";
-
-export function buildTableDatasetQueryFromInput(
-  input: TableQueryInput,
-  table: TableSchema,
-): DatasetQuery | null {
-  const databaseId = getTableDatabaseIdFromInput(input);
-  const tableId = getTableIdFromInput(input);
-
-  if (databaseId == null || tableId == null) {
-    return null;
-  }
-
-  const metadata = createTableMetadata(table, Number(databaseId), input);
-  const libQuery = createLibQuery(
-    metadata,
-    Number(databaseId),
-    Number(tableId),
-  );
-
-  return buildTableDatasetQuery(input, libQuery);
-}
 
 export function buildTableDatasetQueryFromMetadata(
   input: TableQueryInput,
@@ -128,7 +105,7 @@ export function buildMetricDatasetQueryFromInput(
     return null;
   }
 
-  const metadata = createMetricMetadata(input, Number(databaseId));
+  const metadata = createSyntheticMetricMetadata(input, Number(databaseId));
   let libQuery = createLibQuery(metadata, Number(databaseId), sourceId);
 
   const queryWithMetric = applyMetricAggregation(libQuery, Number(metricId));

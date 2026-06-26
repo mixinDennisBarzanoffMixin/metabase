@@ -35,7 +35,7 @@ import {
 
 import { getFieldBaseType, getFieldEffectiveType } from "./query-utils";
 
-type TableMetadataSource = Omit<TableSchema, "id"> & { id: TableId };
+type SyntheticTableMetadataSource = Omit<TableSchema, "id"> & { id: TableId };
 type QueryMetadataInput = TableQueryInput | MetricQueryInput;
 
 export function createLibQuery(
@@ -54,10 +54,10 @@ export function createLibQuery(
 }
 
 // -------------
-// TODO(EMB-1947): synthetic metadata remains for schema-only and metric queries.
+// TODO(EMB-1947): synthetic metadata remains for metric queries.
 //
-// Table queries can use runtime query_metadata. Metric queries still need a
-// runtime metadata path before this scaffold can go away.
+// Table queries use runtime query_metadata. Metric queries still need a runtime
+// metadata path before this scaffold can go away.
 // -------------
 
 export function getDatabaseIdFromMetadata(
@@ -70,8 +70,8 @@ export function getDatabaseIdFromMetadata(
   return typeof databaseId === "number" ? databaseId : null;
 }
 
-export function createTableMetadata(
-  table: TableMetadataSource,
+function createSyntheticTableMetadata(
+  table: SyntheticTableMetadataSource,
   databaseId: number,
   query?: QueryMetadataInput,
 ): MetadataInput {
@@ -80,7 +80,7 @@ export function createTableMetadata(
   const measures = getTableMeasures(table, query);
 
   return {
-    databases: { [databaseId]: createDatabaseMetadata(databaseId) },
+    databases: { [databaseId]: createSyntheticDatabaseMetadata(databaseId) },
     tables: { [table.id]: createTableMetadataRecord(table, databaseId) },
     fields: Object.fromEntries(
       fields.map((field, index) => [
@@ -127,7 +127,7 @@ const getTableMetadataRecord = (
   );
 };
 
-export function createMetricMetadata(
+export function createSyntheticMetricMetadata(
   input: MetricQueryInput,
   databaseId: number,
 ): MetadataInput {
@@ -176,7 +176,7 @@ export function createMetricMetadata(
         };
 
   return {
-    ...createTableMetadata(table, databaseId, input),
+    ...createSyntheticTableMetadata(table, databaseId, input),
     questions: {
       [metricId]: createMetricCardMetadataRecord({
         metricId,
@@ -190,14 +190,14 @@ export function createMetricMetadata(
   };
 }
 
-const createDatabaseMetadata = (databaseId: number) => ({
+const createSyntheticDatabaseMetadata = (databaseId: number) => ({
   id: databaseId,
   name: `Database ${databaseId}`,
   features: ["basic-aggregations", "binning", "expressions"],
 });
 
 const createTableMetadataRecord = (
-  table: TableMetadataSource,
+  table: SyntheticTableMetadataSource,
   databaseId: number,
 ) => ({
   id: table.id,
@@ -282,7 +282,7 @@ const createMetricCardMetadataRecord = ({
 });
 
 const getTableFields = (
-  table: TableMetadataSource,
+  table: SyntheticTableMetadataSource,
   query?: QueryMetadataInput,
 ): FieldSchema[] =>
   getUniqueFields([
@@ -291,7 +291,7 @@ const getTableFields = (
   ]);
 
 const getTableSegments = (
-  table: TableMetadataSource,
+  table: SyntheticTableMetadataSource,
   query?: QueryMetadataInput,
 ): SegmentSchema[] =>
   getUniqueById([
@@ -300,7 +300,7 @@ const getTableSegments = (
   ]);
 
 const getTableMeasures = (
-  table: TableMetadataSource,
+  table: SyntheticTableMetadataSource,
   query?: QueryMetadataInput,
 ): MeasureReferenceInput[] =>
   getUniqueById([

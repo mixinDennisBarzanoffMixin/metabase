@@ -32,7 +32,7 @@ export const createMetabaseQuery =
     const tableId = getTableIdFromInput(query);
 
     if (tableId == null) {
-      return createMetabaseQueryFromGeneratedSchema(query);
+      throw new Error("Table query object creation requires a table id.");
     }
 
     await store.dispatch(
