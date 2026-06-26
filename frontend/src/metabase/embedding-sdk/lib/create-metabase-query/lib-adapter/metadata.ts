@@ -47,17 +47,17 @@ export function createLibQuery(
   const table = Lib.tableOrCardMetadata(provider, tableId);
 
   if (!table) {
-    throw new Error("Query creation requires generated table metadata.");
+    throw new Error("Query creation requires table metadata.");
   }
 
   return Lib.queryFromTableOrCardMetadata(provider, table);
 }
 
 // -------------
-// TODO(EMB-1947): these synthetic metadata are temporary.
+// TODO(EMB-1947): synthetic metadata remains for schema-only and metric queries.
 //
-// We will fetch query metadata at runtime and pass them as
-// metadata provider to metabase-lib - and rewrite this file.
+// Table queries can use runtime query_metadata. Metric queries still need a
+// runtime metadata path before this scaffold can go away.
 // -------------
 
 export function getDatabaseIdFromMetadata(
