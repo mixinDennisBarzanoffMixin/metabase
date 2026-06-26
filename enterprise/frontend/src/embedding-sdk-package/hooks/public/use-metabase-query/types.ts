@@ -13,7 +13,7 @@ import type {
   TimeFilterOperator,
 } from "metabase-lib/common";
 import type { BinningOptions } from "metabase-lib/query";
-import type { TemporalUnit } from "metabase-types/api";
+import type { DatasetQuery, TemporalUnit } from "metabase-types/api";
 
 import type {
   FieldSchema,
@@ -533,6 +533,15 @@ export type UseMetabaseQueryResult<TEntity = unknown, TQuery = unknown> = {
   isLoading: boolean;
   error: unknown;
   refetch: () => Promise<void>;
+};
+
+/**
+ * @notExported UseMetabaseQueryObjectResult
+ */
+export type UseMetabaseQueryObjectResult = {
+  query: DatasetQuery | null;
+  isLoading: boolean;
+  error: unknown;
 };
 
 /**

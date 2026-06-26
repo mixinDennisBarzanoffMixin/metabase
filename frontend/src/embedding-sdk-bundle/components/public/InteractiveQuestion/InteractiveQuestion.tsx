@@ -143,7 +143,7 @@ function InteractiveQuestionInner(props: InteractiveQuestionInternalProps) {
     [card, query],
   );
 
-  // For query prop: `useMetabaseQueryObject` returns `null` when SDK bundle is still loading
+  // For query prop: SDK query-object callers pass `null` while metadata is still loading.
   if (query === null && questionId === undefined && token === undefined) {
     return null;
   }

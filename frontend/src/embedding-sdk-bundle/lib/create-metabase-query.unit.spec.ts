@@ -75,7 +75,7 @@ describe("createMetabaseQuery", () => {
 
     expect(fetchTableMetadata).toHaveBeenCalledWith(
       { id: 1 },
-      { reload: true },
+      { reload: false },
     );
 
     expect(store.dispatch).toHaveBeenCalledWith(FETCH_TABLE_METADATA_ACTION);
@@ -98,7 +98,7 @@ describe("createMetabaseQuery", () => {
 
     expect(fetchTableMetadata).toHaveBeenCalledWith(
       { id: 1 },
-      { reload: true },
+      { reload: false },
     );
 
     expect(createMetabaseQueryFromMetadata).toHaveBeenCalledWith(
@@ -107,6 +107,20 @@ describe("createMetabaseQuery", () => {
     );
 
     expect(result).toBe(DATASET_QUERY);
+  });
+
+  it("reloads table query metadata when requested", async () => {
+    const store = createMockStore();
+
+    await createMetabaseQuery(store)({
+      query: TABLE_QUERY,
+      reloadMetadata: true,
+    });
+
+    expect(fetchTableMetadata).toHaveBeenCalledWith(
+      { id: 1 },
+      { reload: true },
+    );
   });
 
   it("keeps non-table queries on the existing builder path", async () => {

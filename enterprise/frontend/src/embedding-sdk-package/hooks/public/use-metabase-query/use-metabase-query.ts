@@ -38,6 +38,7 @@ import type {
   TableQuery,
   UnaryFilterOperatorForDimension,
   UseMetabaseQuery,
+  UseMetabaseQueryObjectResult,
   UseMetabaseQueryResult,
   ValueFilterOperatorForDimension,
 } from "./types";
@@ -52,6 +53,7 @@ export type {
   MetabaseMetricBreakout,
   MetabaseMetricDimensionFilter,
   MetabaseQueryOptions,
+  UseMetabaseQueryObjectResult,
   UseMetabaseQueryResult,
 } from "./types";
 
@@ -330,7 +332,7 @@ export const useMetabaseQuery = useMetabaseQueryImpl as UseMetabaseQuery;
 /** @notExported useMetabaseQueryObject */
 export function useMetabaseQueryObject(
   query: TableQuery<unknown> | MetricQuery<unknown>,
-): DatasetQuery | null {
+): UseMetabaseQueryObjectResult {
   const { loadingState } = useSdkLoadingState();
   const {
     state: {
@@ -347,6 +349,7 @@ export function useMetabaseQueryObject(
   const [metadataDatasetQuery, setMetadataDatasetQuery] =
     useState<DatasetQuery | null>(null);
 
+  const [isLoading, setIsLoading] = useState(false);
   const [metadataQueryError, setMetadataQueryError] = useState<unknown>(null);
 
   const queryKey = useMemo(() => stableStringifyQuery(query), [query]);
@@ -357,6 +360,7 @@ export function useMetabaseQueryObject(
   useEffect(() => {
     if (!createQuery || !reduxStore || loginStatus?.status !== "success") {
       setMetadataDatasetQuery(null);
+      setIsLoading(false);
       setMetadataQueryError(null);
       return;
     }
@@ -364,17 +368,20 @@ export function useMetabaseQueryObject(
     let isCancelled = false;
 
     setMetadataDatasetQuery(null);
+    setIsLoading(true);
     setMetadataQueryError(null);
 
     createQuery(reduxStore)({ query: queryRef.current })
       .then((datasetQuery) => {
         if (!isCancelled) {
           setMetadataDatasetQuery(datasetQuery);
+          setIsLoading(false);
         }
       })
       .catch((err) => {
         if (!isCancelled) {
           setMetadataDatasetQuery(null);
+          setIsLoading(false);
           setMetadataQueryError(err);
         }
       });
@@ -384,9 +391,9 @@ export function useMetabaseQueryObject(
     };
   }, [createQuery, loadingState, loginStatus?.status, queryKey, reduxStore]);
 
-  if (createQuery && metadataQueryError != null) {
-    throw metadataQueryError;
-  }
-
-  return metadataDatasetQuery;
+  return {
+    query: metadataDatasetQuery,
+    isLoading,
+    error: metadataQueryError,
+  };
 }

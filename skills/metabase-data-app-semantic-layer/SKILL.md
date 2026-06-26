@@ -261,9 +261,9 @@ Measures must come from tables in the metric's `mappedTableIds`. Fields, segment
 
 ## Interactive Metabase Views
 
-Use Metabase's SDK `InteractiveQuestion` or `StaticQuestion` by default when the UI can be expressed as a normal Metabase question visualization. Build a semantic query with `useMetabaseQueryObject`, then pass the returned query to the SDK question component with the `query` prop.
+Use Metabase's SDK `InteractiveQuestion` or `StaticQuestion` by default when the UI can be expressed as a normal Metabase question visualization. Build a semantic query with `useMetabaseQueryObject`, then pass its `query` value to the SDK question component.
 
-`useMetabaseQueryObject` supports generated table objects and generated metric objects. Use `useMetabaseQuery` when custom React needs direct row data; use `useMetabaseQueryObject` when Metabase should render or manage the visualization. Do not pass generics to `useMetabaseQueryObject`; it returns a typed `DatasetQuery | null`, not query result rows.
+`useMetabaseQueryObject` supports generated table objects and generated metric objects. Use `useMetabaseQuery` when custom React needs direct row data; use `useMetabaseQueryObject` when Metabase should render or manage the visualization. Do not pass generics to `useMetabaseQueryObject`; it returns `{ query, isLoading, error }`, where `query` is a typed `DatasetQuery | null`, not query result rows. Pass `query` directly to `InteractiveQuestion` or `StaticQuestion`; those components accept `query={null}` while metadata is loading. Handle `error` when the app needs a visible failure state. Use `isLoading` only when the surrounding layout needs its own skeleton before the SDK component mounts.
 
 The prop contract is:
 
@@ -331,11 +331,15 @@ import {
 
 const eventsTable = schema.tables.events;
 
-const trendQuery = useMetabaseQueryObject({
+const { query: trendQuery, error } = useMetabaseQueryObject({
   table: eventsTable,
   aggregations: [eventsTable.measures.totalAmount],
   breakouts: [breakout(eventsTable.fields.occurredAt, { bucket: "month" })],
 });
+
+if (error) {
+  return <div>Could not load chart.</div>;
+}
 
 return (
   <InteractiveQuestion query={trendQuery}>
@@ -347,11 +351,15 @@ return (
 Full interactive question, with the query toolbar:
 
 ```tsx
-const trendQuery = useMetabaseQueryObject({
+const { query: trendQuery, error } = useMetabaseQueryObject({
   table: eventsTable,
   aggregations: [eventsTable.measures.totalAmount],
   breakouts: [breakout(eventsTable.fields.occurredAt, { bucket: "month" })],
 });
+
+if (error) {
+  return <div>Could not load chart.</div>;
+}
 
 return <InteractiveQuestion query={trendQuery} height="500px" />;
 ```
@@ -359,11 +367,15 @@ return <InteractiveQuestion query={trendQuery} height="500px" />;
 Static question:
 
 ```tsx
-const trendQuery = useMetabaseQueryObject({
+const { query: trendQuery, error } = useMetabaseQueryObject({
   table: eventsTable,
   aggregations: [eventsTable.measures.totalAmount],
   breakouts: [breakout(eventsTable.fields.occurredAt, { bucket: "month" })],
 });
+
+if (error) {
+  return <div>Could not load chart.</div>;
+}
 
 return <StaticQuestion query={trendQuery} height="500px" />;
 ```
@@ -374,7 +386,7 @@ Metric-backed SDK question:
 const primaryMetric = schema.metrics.primaryMetric;
 const sourceTable = schema.tables.sourceTable;
 
-const metricTrendQuery = useMetabaseQueryObject({
+const { query: metricTrendQuery, error } = useMetabaseQueryObject({
   metric: primaryMetric,
   measures: [sourceTable.measures.totalAmount],
   breakouts: [
@@ -383,6 +395,10 @@ const metricTrendQuery = useMetabaseQueryObject({
     }),
   ],
 });
+
+if (error) {
+  return <div>Could not load chart.</div>;
+}
 
 return (
   <InteractiveQuestion query={metricTrendQuery}>

@@ -613,11 +613,21 @@ describe("useMetabaseQuery", () => {
     it("memoizes a complete dataset query from a generated table schema", async () => {
       setup({ component: <MetabaseQueryObjectComponent /> });
 
+      expect(screen.getByTestId("query-object-loading")).toHaveTextContent(
+        "true",
+      );
+
       await waitFor(() => {
         expect(
           JSON.parse(screen.getByTestId("query-object").textContent ?? ""),
         ).toEqual(expectedOrdersQuery);
       });
+
+      expect(screen.getByTestId("query-object-loading")).toHaveTextContent(
+        "false",
+      );
+
+      expect(screen.getByTestId("query-object-error")).toBeEmptyDOMElement();
     });
 
     it("builds explicit count aggregations", () => {
@@ -1097,6 +1107,28 @@ describe("useMetabaseQuery", () => {
     );
   });
 
+  it("returns query object loading errors", async () => {
+    const createMetabaseQuery = jest.fn(() => async () => {
+      throw new Error("Could not load metadata");
+    });
+
+    setup({
+      createMetabaseQuery,
+      component: <MetabaseQueryObjectComponent />,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("query-object-error")).toHaveTextContent(
+        "Could not load metadata",
+      );
+    });
+
+    expect(screen.getByTestId("query-object-loading")).toHaveTextContent(
+      "false",
+    );
+    expect(screen.getByTestId("query-object")).toHaveTextContent("null");
+  });
+
   it("queries generated metrics with measures via the dataset endpoint", async () => {
     const queryDatasetApi = jest.fn().mockResolvedValue({
       rowCount: null,
@@ -1282,28 +1314,28 @@ const InvalidTableMeasureComponent = () => {
 };
 
 const MetabaseQueryObjectComponent = () => {
-  const query = useMetabaseQueryObject({
+  const result = useMetabaseQueryObject({
     table: TEST_SCHEMA.tables.orders,
     filters: [filter(TEST_SCHEMA.tables.orders.fields.status, "=", "paid")],
     breakouts: [breakout(TEST_SCHEMA.tables.orders.fields.createdAt)],
   });
 
-  return <div data-testid="query-object">{JSON.stringify(query)}</div>;
+  return <QueryObjectResult result={result} />;
 };
 
 const MetricQueryObjectComponent = () => {
-  const query = useMetabaseQueryObject({
+  const result = useMetabaseQueryObject({
     metric: TEST_SCHEMA.metrics.orderCount,
     breakouts: [
       breakout(TEST_SCHEMA.metrics.orderCount.dimensions.orders.status),
     ],
   });
 
-  return <div data-testid="query-object">{JSON.stringify(query)}</div>;
+  return <QueryObjectResult result={result} />;
 };
 
 const SourceCardMetricQueryObjectComponent = () => {
-  const query = useMetabaseQueryObject({
+  const result = useMetabaseQueryObject({
     metric: TEST_SCHEMA.metrics.orderCountFromModel,
     breakouts: [
       breakout(
@@ -1313,8 +1345,22 @@ const SourceCardMetricQueryObjectComponent = () => {
     ],
   });
 
-  return <div data-testid="query-object">{JSON.stringify(query)}</div>;
+  return <QueryObjectResult result={result} />;
 };
+
+const QueryObjectResult = ({
+  result,
+}: {
+  result: ReturnType<typeof useMetabaseQueryObject>;
+}) => (
+  <>
+    <div data-testid="query-object">{JSON.stringify(result.query)}</div>
+    <div data-testid="query-object-loading">{String(result.isLoading)}</div>
+    <div data-testid="query-object-error">
+      {result.error instanceof Error ? result.error.message : ""}
+    </div>
+  </>
+);
 
 const TableFieldIdComponent = () => {
   useMetabaseQuery<OrdersTable>({

@@ -24,7 +24,7 @@ export type CreateMetabaseQuery = (
 
 export const createMetabaseQuery =
   (store: SdkStore): CreateMetabaseQuery =>
-  async ({ query, reloadMetadata = true }: CreateMetabaseQueryParams) => {
+  async ({ query, reloadMetadata = false }: CreateMetabaseQueryParams) => {
     if (!isTableInput(query)) {
       return createMetabaseQueryFromGeneratedSchema(query);
     }
