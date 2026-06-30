@@ -259,10 +259,14 @@
 (mu/defn- append-filter :- ::lib.schema/query
   [query        :- ::lib.schema/query
    stage-number :- :int
-   filter-spec  :- ::lib.schema.test-spec/test-expression-spec]
-  (->> (lib.filter/filterable-columns query stage-number)
-       (expression-spec->expression-clause query stage-number filter-spec)
-       (lib.filter/filter query stage-number)))
+   filter-spec  :- [:or ::lib.schema.test-spec/test-expression-spec ::lib.schema.test-spec/test-segment-spec]]
+  (if (= (:type filter-spec) :segment)
+    (if-let [segment (lib.metadata/segment query (:id filter-spec))]
+      (lib.filter/filter query stage-number segment)
+      (throw (ex-info "No segment found" {:segment-spec filter-spec})))
+    (->> (lib.filter/filterable-columns query stage-number)
+         (expression-spec->expression-clause query stage-number filter-spec)
+         (lib.filter/filter query stage-number))))
 
 (mu/defn- append-filters :- ::lib.schema/query
   [query        :- ::lib.schema/query
@@ -276,9 +280,13 @@
   [query            :- ::lib.schema/query
    stage-number     :- :int
    aggregation-spec :- ::lib.schema.test-spec/test-aggregation-spec]
-  (->> (lib.aggregation/aggregable-columns query stage-number)
-       (expression-spec->expression-clause query stage-number aggregation-spec)
-       (lib.aggregation/aggregate query stage-number)))
+  (if (= (:type aggregation-spec) :measure)
+    (if-let [measure (lib.metadata/measure query (:id aggregation-spec))]
+      (lib.aggregation/aggregate query stage-number measure)
+      (throw (ex-info "No measure found" {:measure-spec aggregation-spec})))
+    (->> (lib.aggregation/aggregable-columns query stage-number)
+         (expression-spec->expression-clause query stage-number aggregation-spec)
+         (lib.aggregation/aggregate query stage-number))))
 
 (mu/defn- append-aggregations  :- ::lib.schema/query
   [query             :- ::lib.schema/query

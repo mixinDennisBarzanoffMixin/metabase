@@ -1,187 +1,119 @@
-import { getMetricMappedTableIdsFromInput } from "embedding-sdk-shared/lib/create-metabase-query/input-accessors";
 import { isTableFieldSchema } from "embedding-sdk-shared/lib/create-metabase-query/input-guards";
-import type { FieldSchema } from "embedding-sdk-shared/lib/create-metabase-query/schema";
 
 import {
   isCountAggregation,
+  isDimensionFilter,
   isFieldAggregation,
   isMeasureSchema,
   isSegmentSchema,
-  isTableDimensionFilter,
 } from "./guards";
-import type { MetricQueryInput } from "./input-types";
-import { getMetricDimensionValues, normalizeBreakout } from "./input-utils";
+import type { TableQueryInput } from "./input-types";
+import { normalizeBreakout } from "./input-utils";
 
-export const validateMetricTableScopedInputs = (input: MetricQueryInput) =>
-  validateTableScopedInputs({
-    allowedTableIds: getMetricMappedTableIdsFromInput(input),
-    breakouts: input.breakouts,
-    filters: input.filters,
-    measures: input.measures,
-    context: "Metric query",
-  });
-
-export function validateMetricGeneratedDimensions(input: MetricQueryInput) {
-  input.filters?.forEach((filter) => {
-    if (isTableDimensionFilter(filter)) {
-      validateMetricDimensionForTableField(input, filter.dimension);
-    }
-  });
-
-  input.breakouts?.forEach((breakout) => {
-    const field = getTableFieldFromBreakout(breakout);
-
-    if (field) {
-      validateMetricDimensionForTableField(input, field);
-    }
-  });
+export function validateTableQueryInput(input: TableQueryInput) {
+  validateLimit(input.limit);
+  validateGroupedQuery(input);
+  validateTableScopedInputs(input);
 }
 
-export function validateTableScopedInputs({
-  allowedTableIds,
-  context,
-
-  filters,
-  measures,
-  breakouts,
-}: {
-  allowedTableIds: readonly number[] | null;
-  context: string;
-
-  filters?: readonly unknown[];
-  measures?: readonly unknown[];
-  breakouts?: readonly unknown[];
-}) {
-  if (!allowedTableIds) {
+function validateLimit(limit: number | undefined) {
+  if (limit == null) {
     return;
   }
 
-  filters?.forEach((filter) => {
-    if (isSegmentSchema(filter)) {
-      validateGeneratedTableId({
-        tableId: filter.tableId,
-        allowedTableIds,
-        context: `${context} segments`,
-      });
-    }
-
-    if (
-      isTableDimensionFilter(filter) &&
-      typeof filter.dimension.tableId === "number"
-    ) {
-      validateGeneratedTableId({
-        tableId: filter.dimension.tableId,
-        allowedTableIds,
-        context: `${context} filters`,
-      });
-    }
-  });
-
-  measures?.forEach((measure) => {
-    validateGeneratedMeasure({
-      measure,
-      context: `${context} measures`,
-    });
-
-    if (isMeasureSchema(measure)) {
-      validateGeneratedTableId({
-        tableId: measure.tableId,
-        allowedTableIds,
-        context: `${context} measures`,
-      });
-    }
-
-    if (
-      isFieldAggregation(measure) &&
-      isTableFieldSchema(measure.dimension) &&
-      typeof measure.dimension.tableId === "number"
-    ) {
-      validateGeneratedTableId({
-        tableId: measure.dimension.tableId,
-        allowedTableIds,
-        context: `${context} aggregations`,
-      });
-    }
-  });
-
-  breakouts?.forEach((breakout) => {
-    const field = getTableFieldFromBreakout(breakout);
-
-    if (field && typeof field.tableId === "number") {
-      validateGeneratedTableId({
-        tableId: field.tableId,
-        allowedTableIds,
-        context: `${context} breakouts`,
-      });
-    }
-  });
-}
-
-function getTableFieldFromBreakout(breakout: unknown) {
-  const { dimension } = normalizeBreakout(breakout);
-
-  return isTableFieldSchema(dimension) ? dimension : null;
-}
-
-export function validateMetricDimensionForTableField(
-  input: MetricQueryInput,
-  field: FieldSchema,
-) {
-  const dimension = getMetricDimensionFields(input).find((dimension) => {
-    return fieldsMatch(dimension, field);
-  });
-
-  if (!dimension) {
-    throw new Error(
-      "Metric query table-field filters must match a generated metric dimension for the metric. Use schema.metrics.*.dimensions.* or pass the full generated metric object.",
-    );
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error("Table query limit must be a positive integer.");
   }
 }
 
-export const getMetricDimensionFields = (input: MetricQueryInput) =>
-  getMetricDimensionValues(input.metric, isTableFieldSchema);
-
-const fieldsMatch = (left: FieldSchema, right: FieldSchema) =>
-  left.tableId === right.tableId &&
-  ((left.fieldId != null && left.fieldId === right.fieldId) ||
-    left.name === right.name);
-
-function validateGeneratedMeasure({
-  measure,
-  context,
-}: {
-  measure: unknown;
-  context: string;
-}) {
-  if (
-    isMeasureSchema(measure) ||
-    isCountAggregation(measure) ||
-    isFieldAggregation(measure)
-  ) {
+function validateGroupedQuery(input: TableQueryInput) {
+  if (!input.breakouts?.length || input.aggregations?.length) {
     return;
   }
 
   throw new Error(
-    `${context} must use generated semantic-layer measures from schema.tables.*.measures.*.`,
+    "Table queries with breakouts must include at least one aggregation.",
   );
 }
 
-function validateGeneratedTableId({
-  tableId,
-  context,
-  allowedTableIds,
-}: {
-  tableId: number;
-  context: string;
-  allowedTableIds: readonly number[] | null;
-}) {
-  if (!allowedTableIds || allowedTableIds.includes(tableId)) {
+function validateTableScopedInputs(input: TableQueryInput) {
+  const tableId = input.source.id;
+
+  input.filters?.forEach((filter) => {
+    if (isSegmentSchema(filter)) {
+      validateGeneratedTableId(filter.tableId, tableId, "Table query segments");
+      return;
+    }
+
+    if (isDimensionFilter(filter) && isTableFieldSchema(filter.dimension)) {
+      validateGeneratedTableId(
+        filter.dimension.tableId,
+        tableId,
+        "Table query filters",
+      );
+      return;
+    }
+
+    throw new Error(
+      "Table query filters must use generated fields or Segments.",
+    );
+  });
+
+  input.fields?.forEach((field) =>
+    validateGeneratedTableId(field.tableId, tableId, "Table query fields"),
+  );
+
+  input.aggregations?.forEach((aggregation) => {
+    if (isMeasureSchema(aggregation)) {
+      validateGeneratedTableId(
+        aggregation.tableId,
+        tableId,
+        "Table query aggregations",
+      );
+      return;
+    }
+
+    if (isCountAggregation(aggregation)) {
+      return;
+    }
+
+    if (
+      isFieldAggregation(aggregation) &&
+      isTableFieldSchema(aggregation.dimension)
+    ) {
+      validateGeneratedTableId(
+        aggregation.dimension.tableId,
+        tableId,
+        "Table query aggregations",
+      );
+      return;
+    }
+
+    throw new Error(
+      "Table query aggregations must use generated Measures or aggregation helpers.",
+    );
+  });
+
+  input.breakouts?.forEach((breakout) => {
+    const { dimension } = normalizeBreakout(breakout);
+    validateGeneratedTableId(
+      dimension?.tableId,
+      tableId,
+      "Table query breakouts",
+    );
+  });
+}
+
+function validateGeneratedTableId(
+  actualTableId: number | undefined,
+  expectedTableId: number,
+  context: string,
+) {
+  if (actualTableId == null || actualTableId === expectedTableId) {
     return;
   }
 
   throw new Error(
-    `${context} must belong to one of the query's mapped tables. Expected table id ${tableId} to be one of ${allowedTableIds.join(
-      ", ",
-    )}.`,
+    `${context} must belong to the query source table. Expected table id ${actualTableId} to equal ${expectedTableId}.`,
   );
 }

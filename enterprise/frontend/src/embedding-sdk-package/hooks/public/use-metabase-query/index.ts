@@ -8,6 +8,7 @@ export {
   max,
   median,
   min,
+  orderBy,
   sum,
   useMetabaseQuery,
   useMetabaseQueryObject,

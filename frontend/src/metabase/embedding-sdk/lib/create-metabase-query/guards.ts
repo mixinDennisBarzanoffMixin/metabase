@@ -22,12 +22,12 @@ export const isTableDimensionFilter = (
 export const isSegmentSchema = (
   value: unknown,
 ): value is SegmentReferenceInput =>
-  isObject(value) && "kind" in value && value.kind === "segment";
+  isObject(value) && "type" in value && value.type === "segment";
 
 export const isMeasureSchema = (
   value: unknown,
 ): value is MeasureReferenceInput =>
-  isObject(value) && "kind" in value && value.kind === "measure";
+  isObject(value) && "type" in value && value.type === "measure";
 
 export const isCountAggregation = (
   value: unknown,

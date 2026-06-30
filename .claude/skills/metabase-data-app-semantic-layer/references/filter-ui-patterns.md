@@ -6,10 +6,10 @@ Use these patterns when building custom filter bars for data apps.
 
 Before writing controls, map each filter to the dashboard. Keep this contract small and concrete:
 
-| Filter | Runtime options query | Raw value | Applies to | Unsupported sections |
-| ------ | --------------------- | --------- | ---------- | -------------------- |
-| Franchise | breakout on franchise id/name | franchise id | orders, revenue, inventory | none |
-| Plan | breakout on plan | plan text | orders | revenue, inventory |
+| Filter    | Runtime options query         | Raw value    | Applies to                 | Unsupported sections |
+| --------- | ----------------------------- | ------------ | -------------------------- | -------------------- |
+| Franchise | breakout on franchise id/name | franchise id | orders, revenue, inventory | none                 |
+| Plan      | breakout on plan              | plan text    | orders                     | revenue, inventory   |
 
 If a filter has unsupported sections, either make it section-scoped or do not render it as a global dashboard filter. Do not show duplicate date controls for the same page unless both visibly affect different labeled sections.
 
@@ -28,6 +28,7 @@ Before rendering a filter, answer:
 Query options from Metabase at runtime with a breakout on the same field or metric dimension used by the filter.
 
 - Run a `useMetabaseQuery` breakout on the same table field or metric dimension used by `filter(...)`, then derive a deduped option list from returned rows.
+- Include an explicit aggregation, usually `aggregations: [count()]`, on every `useMetabaseQuery` call that uses `breakouts`. Do not rely on an implicit count.
 - Prefer querying options from the same semantic object used by the charts so the option list stays compatible with the filter.
 - Treat categorical labels as runtime values unless the user explicitly provides a closed enum. Field names in the generated schema are not value lists.
 - Use a searchable picker/combobox for entity filters and long runtime option lists.

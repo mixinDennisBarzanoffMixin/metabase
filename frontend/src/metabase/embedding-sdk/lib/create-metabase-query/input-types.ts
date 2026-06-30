@@ -1,15 +1,19 @@
 import type {
   FieldSchema,
-  MetricSchema,
+  MeasureSchema,
   SchemaColumn,
+  SegmentSchema,
   TableSchema,
 } from "embedding-sdk-shared/lib/create-metabase-query/schema";
 import type { FilterOperator as LibFilterOperator } from "metabase-lib/common";
 import type { BinningOptions } from "metabase-lib/query";
+import type { TemporalUnit } from "metabase-types/api";
 
 type ID = string | number;
 
-export type FilterOperator = LibFilterOperator | "time-interval";
+export type FilterOperator =
+  | Exclude<LibFilterOperator, "inside">
+  | "time-interval";
 
 export type SqlParameterValuesInput = Record<
   string,
@@ -21,16 +25,6 @@ export type SqlParameterValuesInput = Record<
   | undefined
 >;
 
-export type ColumnReferenceInput = string | FieldSchema;
-
-export type BreakoutInput<TDimension = ColumnReferenceInput> =
-  | TDimension
-  | {
-      dimension: TDimension;
-      bucket?: string;
-      binning?: BinningOptions;
-    };
-
 export type QuestionQueryInput = {
   questionId: ID;
   parameters?: SqlParameterValuesInput;
@@ -38,50 +32,25 @@ export type QuestionQueryInput = {
 };
 
 export type TableQueryInput = {
-  table: TableSchema;
-
+  source: TableSchema;
   questionId?: never;
-  metric?: never;
-  metricId?: never;
-
-  filters?: readonly unknown[];
-  aggregations?: readonly unknown[];
-  measures?: readonly unknown[];
-  breakouts?: readonly unknown[];
-
+  filters?: readonly FilterInput[];
+  fields?: readonly FieldSchema[];
+  aggregations?: readonly AggregationInput[];
+  breakouts?: readonly BreakoutInput[];
+  orderBys?: readonly OrderByInput[];
+  limit?: number;
   enabled?: boolean;
 };
 
-export type MetricQueryInput = {
-  metric?: MetricReference;
-  metricId?: number;
+export type MetabaseQueryInput = QuestionQueryInput | TableQueryInput;
 
-  questionId?: never;
-  table?: never;
-  tableId?: never;
-
-  filters?: readonly unknown[];
-  measures?: readonly unknown[];
-  breakouts?: readonly unknown[];
-
-  enabled?: boolean;
+export type SegmentReferenceInput = Pick<SegmentSchema, "type" | "id"> & {
+  tableId?: number;
 };
 
-export type MetabaseQueryInput =
-  | QuestionQueryInput
-  | TableQueryInput
-  | MetricQueryInput;
-
-export type SegmentReferenceInput = {
-  kind: "segment";
-  id: number;
-  tableId: number;
-};
-
-export type MeasureReferenceInput = {
-  kind: "measure";
-  id: number;
-  tableId: number;
+export type MeasureReferenceInput = Pick<MeasureSchema, "type" | "id"> & {
+  tableId?: number;
   columns?: readonly SchemaColumn[];
 };
 
@@ -89,23 +58,44 @@ export type CountAggregationInput = {
   type: "count";
 };
 
-export type FieldAggregationInput<TDimension = unknown> = {
+export type FieldAggregationInput<TDimension = FieldSchema> = {
   type: "sum" | "avg" | "median" | "distinct" | "min" | "max";
   dimension: TDimension;
+  columns?: readonly SchemaColumn[];
 };
 
-export type MetricReference = Pick<MetricSchema, "dimensions"> & {
-  id: number;
-  databaseId?: number;
-  sourceTableId?: number;
-  sourceCardId?: number;
-  mappedTableIds: readonly number[];
-  columns?: MetricSchema["columns"];
-};
+export type AggregationInput =
+  | CountAggregationInput
+  | FieldAggregationInput
+  | MeasureReferenceInput;
 
-export type DimensionFilterInput<TDimension = ColumnReferenceInput> = {
+export type DimensionFilterInput<TDimension = FieldSchema> = {
   dimension: TDimension;
   operator: FilterOperator;
   value?: unknown;
   values?: readonly unknown[];
 };
+
+export type FilterInput = DimensionFilterInput | SegmentReferenceInput;
+
+export type BreakoutInput<TDimension = FieldSchema> =
+  | TDimension
+  | ({
+      dimension: TDimension;
+      unit?: TemporalUnit;
+      binning?: BinningOptions;
+    } & Partial<ColumnBinningInput>);
+
+export type OrderByInput<TDimension = FieldSchema> = {
+  type: "column";
+  name: string;
+  direction?: "asc" | "desc";
+  unit?: TemporalUnit;
+  bins?: number | "auto";
+  binWidth?: number | "auto";
+  dimension?: TDimension;
+};
+
+export type ColumnBinningInput =
+  | { bins?: number | "auto"; binWidth?: never }
+  | { binWidth?: number | "auto"; bins?: never };

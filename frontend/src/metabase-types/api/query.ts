@@ -4,6 +4,7 @@ import type { CardId } from "./card";
 import type { DatabaseId } from "./database";
 import type { TemplateTag, TemplateTags, TemporalUnit } from "./dataset";
 import type { FieldId } from "./field";
+import type { MeasureId } from "./measure";
 import type { Parameter } from "./parameters";
 import type { SegmentId } from "./segment";
 import type { TableId } from "./table";
@@ -469,9 +470,22 @@ export type TestExpressionSpec =
   | TestOperatorSpec
   | TestColumnSpec;
 
-export type TestFilterSpec = TestExpressionSpec;
+export type TestSegmentSpec = {
+  type: "segment";
+  id: SegmentId;
+};
 
-export type TestAggregationSpec = TestExpressionSpec | TestNamedExpressionSpec;
+export type TestMeasureSpec = {
+  type: "measure";
+  id: MeasureId;
+};
+
+export type TestFilterSpec = TestExpressionSpec | TestSegmentSpec;
+
+export type TestAggregationSpec =
+  | TestExpressionSpec
+  | TestNamedExpressionSpec
+  | TestMeasureSpec;
 
 export type TestNamedExpressionSpec = {
   name: string;
@@ -526,7 +540,7 @@ type TestJoinConditionSpec = {
 
 export type TestOrderBySpec = TestColumnSpec & {
   direction?: "asc" | "desc";
-};
+} & TestBinningSpec;
 
 export type TestStageSpec = {
   fields?: TestColumnSpec[];

@@ -5,7 +5,6 @@ import { useLazySelector } from "embedding-sdk-shared/hooks/use-lazy-selector";
 import { useMetabaseProviderPropsStore } from "embedding-sdk-shared/hooks/use-metabase-provider-props-store";
 import { useSdkLoadingState } from "embedding-sdk-shared/hooks/use-sdk-loading-state";
 import {
-  isMetricInput,
   isQuestionInput,
   isTableInput,
   isUnaryOperator,
@@ -30,9 +29,8 @@ import type {
   FieldAggregationSchema,
   FilterOperator,
   MetabaseDimensionFilterForOperator,
+  MetabaseOrderBy,
   MetabaseQueryOptions,
-  MetricQuery,
-  MetricReference,
   NumericAggregationDimension,
   OrderableAggregationDimension,
   TableQuery,
@@ -49,9 +47,8 @@ export type {
   FieldAggregationSchema,
   MetabaseBreakout,
   MetabaseDimensionFilter,
-  MetabaseMetricBreakout,
-  MetabaseMetricDimensionFilter,
   MetabaseQueryOptions,
+  MetabaseOrderBy,
   UseMetabaseQueryResult,
 } from "./types";
 
@@ -220,9 +217,21 @@ export function breakout<TDimension>(
   return { dimension, ...options };
 }
 
+/** @notExported orderBy */
+export function orderBy<TDimension extends { name: string; tableId: number }>(
+  dimension: TDimension,
+  options?: Omit<MetabaseOrderBy, "type" | "name" | "dimension">,
+): MetabaseOrderBy {
+  return {
+    type: "column",
+    name: dimension.name,
+    dimension,
+    ...options,
+  };
+}
+
 const useMetabaseQueryImpl = <
-  TEntity extends QuestionSchema | TableSchema | MetricReference | undefined =
-    undefined,
+  TEntity extends QuestionSchema | TableSchema | undefined = undefined,
   TSchema = unknown,
   TQuery extends MetabaseQueryOptions<TEntity, TSchema> = MetabaseQueryOptions<
     TEntity,
@@ -286,7 +295,7 @@ const useMetabaseQueryImpl = <
         return;
       }
 
-      if (isTableInput(currentQuery) || isMetricInput(currentQuery)) {
+      if (isTableInput(currentQuery)) {
         if (!queryDataset) {
           return;
         }
@@ -324,7 +333,7 @@ export const useMetabaseQuery = useMetabaseQueryImpl as UseMetabaseQuery;
 
 /** @notExported useMetabaseQueryObject */
 export function useMetabaseQueryObject(
-  query: TableQuery<unknown> | MetricQuery<unknown>,
+  query: TableQuery<unknown>,
 ): DatasetQuery | null {
   const { loadingState } = useSdkLoadingState();
 
@@ -349,9 +358,7 @@ export function useMetabaseQueryObject(
 }
 
 /** @notExported createMetabaseQuery */
-export function createMetabaseQuery(
-  query: TableQuery<unknown> | MetricQuery<unknown>,
-): DatasetQuery {
+export function createMetabaseQuery(query: TableQuery<unknown>): DatasetQuery {
   const createQuery = getCreateMetabaseQueryFromBundle();
 
   if (!createQuery) {

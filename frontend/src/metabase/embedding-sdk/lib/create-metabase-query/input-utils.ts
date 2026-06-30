@@ -1,33 +1,9 @@
 import { isTableFieldSchema } from "embedding-sdk-shared/lib/create-metabase-query/input-guards";
-import type {
-  FieldSchema,
-  TableSchema,
-} from "embedding-sdk-shared/lib/create-metabase-query/schema";
+import type { FieldSchema } from "embedding-sdk-shared/lib/create-metabase-query/schema";
 import { isNumber } from "metabase/utils/types";
 import { isObject } from "metabase-types/guards";
 
-import type {
-  BreakoutInput,
-  ColumnReferenceInput,
-  MetricQueryInput,
-  MetricReference,
-  TableQueryInput,
-} from "./input-types";
-
-type MetricDimensionGroup = NonNullable<MetricReference["dimensions"]>[string];
-
-type MetricDimensions = Record<string, FieldSchema | MetricDimensionGroup>;
-
-type MetricWithDimensions = {
-  dimensions: MetricDimensions;
-};
-
-export const getTableFromInput = (input: TableQueryInput): TableSchema | null =>
-  isObject(input.table) ? (input.table as TableSchema) : null;
-
-export const isMetricQueryInput = (
-  input: TableQueryInput | MetricQueryInput,
-): input is MetricQueryInput => "metric" in input || "metricId" in input;
+import type { BreakoutInput, ColumnBinningInput } from "./input-types";
 
 export function getFieldId(field: unknown): number | null {
   if (hasFieldId(field)) {
@@ -46,80 +22,67 @@ export const hasFieldId = (
 ): value is FieldSchema & { fieldId: number } =>
   isObject(value) && "fieldId" in value && isNumber(value.fieldId);
 
-export const isMetricDimensionWithFieldId = (
-  value: unknown,
-): value is FieldSchema & { fieldId: number } =>
-  isTableFieldSchema(value) && hasFieldId(value);
-
-export const isColumnReference = (
-  value: unknown,
-): value is ColumnReferenceInput =>
-  typeof value === "string" || isTableFieldSchema(value);
-
-export function getMetricDimensionValues<TDimension>(
-  metric: unknown,
-  isDimension: (value: unknown) => value is TDimension,
-): TDimension[] {
-  if (!hasMetricDimensions(metric)) {
-    return [];
-  }
-
-  return Object.values(metric.dimensions).flatMap((dimensionOrGroup) => {
-    if (isDimension(dimensionOrGroup)) {
-      return [dimensionOrGroup];
-    }
-
-    return isObject(dimensionOrGroup)
-      ? Object.values(dimensionOrGroup).filter(isDimension)
-      : [];
-  });
-}
-
-const hasMetricDimensions = (value: unknown): value is MetricWithDimensions =>
-  isObject(value) && isObject(value.dimensions);
-
 export const normalizeBreakout = (
   breakout: BreakoutInput | unknown,
 ): {
-  dimension: ColumnReferenceInput | null;
+  dimension: FieldSchema | null;
   options: Record<string, unknown>;
-} => ({
-  dimension: getBreakoutDimension(breakout),
-  options: getBreakoutOptions(breakout),
-});
-
-function getBreakoutDimension(
-  breakout: BreakoutInput | unknown,
-): ColumnReferenceInput | null {
-  if (typeof breakout === "string" || isTableFieldSchema(breakout)) {
-    return breakout;
+} => {
+  if (isTableFieldSchema(breakout)) {
+    return { dimension: breakout, options: {} };
   }
 
   if (
     isObject(breakout) &&
     "dimension" in breakout &&
-    isColumnReference(breakout.dimension)
+    isTableFieldSchema(breakout.dimension)
   ) {
-    return breakout.dimension;
+    const { dimension: _dimension, ...options } = breakout;
+    return { dimension: breakout.dimension, options };
   }
 
-  return null;
-}
+  return { dimension: null, options: {} };
+};
 
-function getBreakoutOptions(breakout: unknown): Record<string, unknown> {
-  if (!isObject(breakout)) {
-    return {};
+export function getBinningOptions(
+  value: unknown,
+): ColumnBinningInput | undefined {
+  if (!isObject(value)) {
+    return undefined;
   }
 
-  const options: Record<string, unknown> = {};
-
-  if ("bucket" in breakout && breakout.bucket) {
-    options["temporal-unit"] = breakout.bucket;
+  if (
+    "bins" in value &&
+    (typeof value.bins === "number" || value.bins === "auto")
+  ) {
+    return { bins: value.bins };
   }
 
-  if ("binning" in breakout && breakout.binning) {
-    options.binning = breakout.binning;
+  if (
+    "binWidth" in value &&
+    (typeof value.binWidth === "number" || value.binWidth === "auto")
+  ) {
+    return { binWidth: value.binWidth };
   }
 
-  return options;
+  if ("binning" in value && isObject(value.binning)) {
+    const binning = value.binning;
+    if (
+      binning.strategy === "num-bins" &&
+      typeof binning["num-bins"] === "number"
+    ) {
+      return { bins: binning["num-bins"] };
+    }
+    if (
+      binning.strategy === "bin-width" &&
+      typeof binning["bin-width"] === "number"
+    ) {
+      return { binWidth: binning["bin-width"] };
+    }
+    if (binning.strategy === "default") {
+      return { bins: "auto" };
+    }
+  }
+
+  return undefined;
 }
