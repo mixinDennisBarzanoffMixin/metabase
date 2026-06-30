@@ -5,6 +5,7 @@ import { useLazySelector } from "embedding-sdk-shared/hooks/use-lazy-selector";
 import { useMetabaseProviderPropsStore } from "embedding-sdk-shared/hooks/use-metabase-provider-props-store";
 import { useSdkLoadingState } from "embedding-sdk-shared/hooks/use-sdk-loading-state";
 import {
+  isMetricInput,
   isQuestionInput,
   isTableInput,
   isUnaryOperator,
@@ -13,6 +14,7 @@ import { getWindow } from "embedding-sdk-shared/lib/get-window";
 import type { DatasetQuery } from "metabase-types/api";
 
 import type {
+  MetricSchema,
   QuestionSchema,
   SchemaJavaScriptType,
   TableSchema,
@@ -31,6 +33,7 @@ import type {
   MetabaseDimensionFilterForOperator,
   MetabaseOrderBy,
   MetabaseQueryOptions,
+  MetricQuery,
   NumericAggregationDimension,
   OrderableAggregationDimension,
   TableQuery,
@@ -231,7 +234,8 @@ export function orderBy<TDimension extends { name: string; tableId: number }>(
 }
 
 const useMetabaseQueryImpl = <
-  TEntity extends QuestionSchema | TableSchema | undefined = undefined,
+  TEntity extends QuestionSchema | TableSchema | MetricSchema | undefined =
+    undefined,
   TSchema = unknown,
   TQuery extends MetabaseQueryOptions<TEntity, TSchema> = MetabaseQueryOptions<
     TEntity,
@@ -295,7 +299,7 @@ const useMetabaseQueryImpl = <
         return;
       }
 
-      if (isTableInput(currentQuery)) {
+      if (isMetricInput(currentQuery) || isTableInput(currentQuery)) {
         if (!queryDataset) {
           return;
         }
@@ -333,7 +337,7 @@ export const useMetabaseQuery = useMetabaseQueryImpl as UseMetabaseQuery;
 
 /** @notExported useMetabaseQueryObject */
 export function useMetabaseQueryObject(
-  query: TableQuery<unknown>,
+  query: TableQuery<unknown> | MetricQuery<unknown>,
 ): DatasetQuery | null {
   const { loadingState } = useSdkLoadingState();
 
@@ -358,7 +362,9 @@ export function useMetabaseQueryObject(
 }
 
 /** @notExported createMetabaseQuery */
-export function createMetabaseQuery(query: TableQuery<unknown>): DatasetQuery {
+export function createMetabaseQuery(
+  query: TableQuery<unknown> | MetricQuery<unknown>,
+): DatasetQuery {
   const createQuery = getCreateMetabaseQueryFromBundle();
 
   if (!createQuery) {

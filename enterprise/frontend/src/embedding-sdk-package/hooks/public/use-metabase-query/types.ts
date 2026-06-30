@@ -18,6 +18,8 @@ import type { TemporalUnit } from "metabase-types/api";
 import type {
   FieldSchema,
   InferSchema,
+  MeasureSchema,
+  MetricSchema,
   QueryData,
   QuestionSchema,
   SchemaColumn,
@@ -39,6 +41,16 @@ type FieldValues<TEntity> = TEntity extends {
   ? Values<NonNullable<TFields>>
   : never;
 
+type MetricDimensionValues<TEntity> = TEntity extends {
+  dimensions?: infer TDimensions;
+}
+  ? Values<NonNullable<TDimensions>> extends infer TDimensionGroup
+    ? TDimensionGroup extends unknown
+      ? Values<TDimensionGroup>
+      : never
+    : never
+  : never;
+
 type FieldNames<TEntity> =
   FieldValues<TEntity> extends { name: infer TName } ? TName : string;
 
@@ -53,6 +65,27 @@ type MeasureIds<TEntity> = TEntity extends { measures?: infer TMeasures }
     ? TId
     : never
   : never;
+
+type MetricSourceTableId<TEntity> = TEntity extends {
+  sourceTableId: infer TSourceTableId extends number;
+}
+  ? TSourceTableId
+  : never;
+
+type MetricMappedTableId<TEntity> = TEntity extends {
+  mappedTableIds?: infer TMappedTableIds extends readonly number[];
+}
+  ? TMappedTableIds[number]
+  : MetricSourceTableId<TEntity>;
+
+type IsMetricEntity<TEntity> = TEntity extends MetricSchema
+  ? TEntity extends
+      | { sourceTableId: number }
+      | { sourceCardId: number }
+      | { type: "metric" }
+    ? true
+    : false
+  : false;
 
 type SourceQuerySpec<TTable> = {
   type?: "table";
@@ -131,6 +164,45 @@ type AnyAggregation<TTable = unknown> =
   | FieldAggregation<FieldAggregationOperator, FieldReference<TTable>>
   | FieldAggregationSchema<FieldAggregationOperator, FieldReference<TTable>>
   | MeasureReference<TTable>;
+
+type MetricMeasureReference<TMetric> = [MetricMappedTableId<TMetric>] extends [
+  never,
+]
+  ? MeasureSchema
+  : MeasureReference<{ id: MetricMappedTableId<TMetric> }>;
+
+type MetricSegmentReference<TMetric> = [MetricMappedTableId<TMetric>] extends [
+  never,
+]
+  ? SegmentReference
+  : SegmentReference<{ id: MetricMappedTableId<TMetric> }>;
+
+type MetricDimensionReference<TMetric> = [
+  MetricDimensionValues<TMetric>,
+] extends [never]
+  ? FieldReference
+  : MetricDimensionValues<TMetric>;
+
+type MetricDimensionFilter<TMetric> = MetabaseDimensionFilterForDimension<
+  MetricDimensionReference<TMetric>
+>;
+
+type MetricBreakout<TMetric> =
+  | MetricDimensionReference<TMetric>
+  | MetabaseBreakoutObjectForDimension<MetricDimensionReference<TMetric>>;
+
+type MetricAggregation<TMetric> =
+  | CountAggregation
+  | CountAggregationSchema
+  | FieldAggregation<
+      FieldAggregationOperator,
+      MetricDimensionReference<TMetric>
+    >
+  | FieldAggregationSchema<
+      FieldAggregationOperator,
+      MetricDimensionReference<TMetric>
+    >
+  | MetricMeasureReference<TMetric>;
 
 type AggregationDimensionWithJavaScriptType<
   TDimension,
@@ -281,6 +353,21 @@ export type QuestionQuery<TQuestion> = {
   enabled?: boolean;
 };
 
+export type MetricQuery<TMetric> = {
+  source: TMetric extends MetricSchema ? TMetric : MetricSchema;
+  questionId?: never;
+  fields?: never;
+  filters?: readonly (
+    | MetricSegmentReference<TMetric>
+    | MetricDimensionFilter<TMetric>
+  )[];
+  aggregations?: readonly MetricAggregation<TMetric>[];
+  breakouts?: readonly MetricBreakout<TMetric>[];
+  orderBys?: never;
+  limit?: number;
+  enabled?: boolean;
+};
+
 type TableQueryBase<TTable> = {
   source: TTable extends TableSchema ? SourceQuerySpec<TTable> : TableSchema;
   questionId?: never;
@@ -317,9 +404,17 @@ type RequireAggregationsForBreakouts<TQuery> = TQuery extends {
 export type TableQuery<TTable, TQuery = unknown> = TableQueryBase<TTable> &
   RequireAggregationsForBreakouts<TQuery>;
 
-export type MetabaseQueryOptions<TEntity = unknown, _TSchema = unknown> =
-  | QuestionQuery<TEntity>
-  | TableQuery<TEntity>;
+export type MetabaseQueryOptions<TEntity = unknown, _TSchema = unknown> = [
+  TEntity,
+] extends [undefined]
+  ? QuestionQuery<TEntity> | TableQuery<TEntity> | MetricQuery<TEntity>
+  : IsMetricEntity<TEntity> extends true
+    ? MetricQuery<TEntity>
+    : TEntity extends QuestionSchema
+      ? QuestionQuery<TEntity>
+      : TEntity extends TableSchema
+        ? TableQuery<TEntity>
+        : QuestionQuery<TEntity> | TableQuery<TEntity> | MetricQuery<TEntity>;
 
 type EmptyRow = Record<never, never>;
 
@@ -398,13 +493,16 @@ export type UseMetabaseQueryResult<TEntity = unknown, TQuery = unknown> = {
 };
 
 export type UseMetabaseQuery = <
-  TEntity extends QuestionSchema | TableSchema | undefined = undefined,
+  TEntity extends QuestionSchema | TableSchema | MetricSchema | undefined =
+    undefined,
   TSchema = unknown,
   const TQuery extends MetabaseQueryOptions<TEntity, TSchema> =
     MetabaseQueryOptions<TEntity, TSchema>,
 >(
   query: TQuery &
-    (TQuery extends { source: unknown }
-      ? RequireAggregationsForBreakouts<TQuery>
+    (TQuery extends { source: infer TSource }
+      ? IsMetricEntity<TSource> extends true
+        ? unknown
+        : RequireAggregationsForBreakouts<TQuery>
       : unknown),
 ) => UseMetabaseQueryResult<QueryEntity<TEntity, TQuery>, TQuery>;

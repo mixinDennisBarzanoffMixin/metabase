@@ -1,4 +1,7 @@
-import { isTableInput } from "embedding-sdk-shared/lib/create-metabase-query/input-guards";
+import {
+  isMetricInput,
+  isTableInput,
+} from "embedding-sdk-shared/lib/create-metabase-query/input-guards";
 import type { FieldSchema } from "embedding-sdk-shared/lib/create-metabase-query/schema";
 import * as Lib from "metabase-lib";
 import type {
@@ -21,18 +24,38 @@ import type {
   AggregationInput,
   BreakoutInput,
   FilterInput,
+  MetricQueryInput,
   OrderByInput,
   TableQueryInput,
 } from "./input-types";
 import { getBinningOptions, normalizeBreakout } from "./input-utils";
-import { createTableMetadata } from "./lib-adapter/metadata";
-import { validateTableQueryInput } from "./validation";
+import {
+  createMetricMetadata,
+  createTableMetadata,
+} from "./lib-adapter/metadata";
+import {
+  validateMetricQueryInput,
+  validateTableQueryInput,
+} from "./validation";
 
-export type CreateMetabaseQuery = (input: TableQueryInput) => DatasetQuery;
+type QueryInput = TableQueryInput | MetricQueryInput;
 
-export const createMetabaseQuery: CreateMetabaseQuery = (
-  input: TableQueryInput,
-) => {
+export type CreateMetabaseQuery = (input: QueryInput) => DatasetQuery;
+
+export const createMetabaseQuery: CreateMetabaseQuery = (input: QueryInput) => {
+  if (isMetricInput(input)) {
+    validateMetricQueryInput(input);
+
+    const provider = Lib.metadataProvider(
+      input.source.databaseId ?? null,
+      createMetricMetadata(input.source, input),
+    );
+
+    return Lib.toJsQuery(
+      Lib.createTestQuery(provider, lowerMetricInput(input)),
+    );
+  }
+
   if (!isTableInput(input)) {
     throw new Error(
       "Table query object creation requires a source reference with id and databaseId.",
@@ -48,6 +71,20 @@ export const createMetabaseQuery: CreateMetabaseQuery = (
 
   return Lib.toJsQuery(Lib.createTestQuery(provider, lowerInput(input)));
 };
+
+function lowerMetricInput(input: MetricQueryInput): TestQuerySpec {
+  return {
+    stages: [
+      {
+        source: { type: "metric", id: input.source.id },
+        filters: input.filters?.map(lowerFilter),
+        aggregations: input.aggregations?.map(lowerAggregation),
+        breakouts: input.breakouts?.map(lowerBreakout),
+        limit: input.limit,
+      },
+    ],
+  };
+}
 
 function lowerInput(input: TableQueryInput): TestQuerySpec {
   const stage = {

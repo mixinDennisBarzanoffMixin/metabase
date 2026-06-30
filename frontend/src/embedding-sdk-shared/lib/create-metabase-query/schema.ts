@@ -60,6 +60,7 @@ export type TableSchema = {
 };
 
 export type MetricSchema = {
+  type?: "metric";
   id: number;
   databaseId?: number;
   sourceTableId?: number;

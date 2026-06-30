@@ -1,6 +1,7 @@
 import type {
   FieldSchema,
   MeasureSchema,
+  MetricSchema,
   SchemaColumn,
   SegmentSchema,
   TableSchema,
@@ -43,7 +44,22 @@ export type TableQueryInput = {
   enabled?: boolean;
 };
 
-export type MetabaseQueryInput = QuestionQueryInput | TableQueryInput;
+export type MetricQueryInput = {
+  source: MetricSchema;
+  questionId?: never;
+  filters?: readonly FilterInput[];
+  fields?: never;
+  aggregations?: readonly AggregationInput[];
+  breakouts?: readonly BreakoutInput[];
+  orderBys?: never;
+  limit?: number;
+  enabled?: boolean;
+};
+
+export type MetabaseQueryInput =
+  | QuestionQueryInput
+  | TableQueryInput
+  | MetricQueryInput;
 
 export type SegmentReferenceInput = Pick<SegmentSchema, "type" | "id"> & {
   tableId?: number;
