@@ -9,7 +9,7 @@ import type {
   MetricQueryInput,
   TableQueryInput,
 } from "metabase/embedding-sdk/lib/create-metabase-query/input-types";
-import { fetchCardQueryMetadata } from "metabase/redux/cards";
+import { loadMetadataForCard } from "metabase/questions/actions";
 import { fetchTableMetadata } from "metabase/redux/tables";
 import { getMetadata } from "metabase/selectors/metadata";
 import type { DatasetQuery } from "metabase-types/api";
@@ -54,5 +54,5 @@ const loadQueryMetadata = (
     throw new Error("Metric query object creation requires a metric id.");
   }
 
-  return fetchCardQueryMetadata({ id: metricId }, { reload });
+  return loadMetadataForCard(metricId, { reload });
 };

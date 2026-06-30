@@ -2,7 +2,7 @@ import { cardApi, datasetApi } from "metabase/api";
 import { runRtkEndpoint } from "metabase/api/utils/run-rtk-endpoint";
 import type { Dispatch } from "metabase/redux/store";
 import { fetchTableMetadata } from "metabase/redux/tables";
-import type { Card, TableId, UnsavedCard } from "metabase-types/api";
+import type { Card, CardId, TableId, UnsavedCard } from "metabase-types/api";
 import type { EntityToken } from "metabase-types/api/entity";
 import { isSavedCard } from "metabase-types/guards";
 
@@ -45,4 +45,17 @@ export const loadMetadataForCard =
         { forceRefetch: false },
       );
     }
+  };
+
+export const loadMetadataForCardId =
+  (cardId: CardId, { reload = false }: { reload?: boolean } = {}) =>
+  async (dispatch: Dispatch) => {
+    await Promise.all([
+      runRtkEndpoint({ id: cardId }, dispatch, cardApi.endpoints.getCard, {
+        forceRefetch: reload,
+      }),
+      runRtkEndpoint(cardId, dispatch, cardApi.endpoints.getCardQueryMetadata, {
+        forceRefetch: reload,
+      }),
+    ]);
   };

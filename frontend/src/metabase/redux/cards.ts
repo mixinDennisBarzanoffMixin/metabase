@@ -4,11 +4,7 @@ import { cardApi } from "metabase/api";
 import { runRtkEndpoint } from "metabase/api/utils/run-rtk-endpoint";
 import { INJECT_RTK_QUERY_QUESTION_VALUE } from "metabase/redux/entities/questions-reducer";
 import type { Dispatch } from "metabase/redux/store";
-import type { Card, CardId } from "metabase-types/api";
-
-type FetchOptions = {
-  reload?: boolean;
-};
+import type { Card } from "metabase-types/api";
 
 /**
  * Card lifecycle events dispatched by the create/update thunks below. They let
@@ -37,25 +33,6 @@ export const cardUpdated = (card: Card) => ({
   type: CARD_UPDATED,
   payload: { object: card, question: card },
 });
-
-/**
- * Loads a saved card and its dependent `query_metadata`, so `getMetadata` can
- * read both the card/metric definition and the tables/fields it references.
- */
-export const fetchCardQueryMetadata =
-  ({ id }: { id: CardId }, options: FetchOptions = {}) =>
-  async (dispatch: Dispatch) => {
-    const forceRefetch = options.reload ?? false;
-
-    await Promise.all([
-      runRtkEndpoint({ id }, dispatch, cardApi.endpoints.getCard, {
-        forceRefetch,
-      }),
-      runRtkEndpoint(id, dispatch, cardApi.endpoints.getCardQueryMetadata, {
-        forceRefetch,
-      }),
-    ]);
-  };
 
 // The properties the card endpoints accept on write. Mirrors the former
 // Questions entity `writableProperties`.

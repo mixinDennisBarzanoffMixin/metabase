@@ -1,6 +1,6 @@
 import type { SdkStore } from "embedding-sdk-bundle/store/types";
 import { createMetabaseQueryFromMetadata } from "metabase/embedding-sdk/lib/create-metabase-query";
-import { fetchCardQueryMetadata } from "metabase/redux/cards";
+import { loadMetadataForCard } from "metabase/questions/actions";
 import { fetchTableMetadata } from "metabase/redux/tables";
 import { getMetadata } from "metabase/selectors/metadata";
 
@@ -10,8 +10,8 @@ jest.mock("metabase/embedding-sdk/lib/create-metabase-query", () => ({
   createMetabaseQueryFromMetadata: jest.fn(),
 }));
 
-jest.mock("metabase/redux/cards", () => ({
-  fetchCardQueryMetadata: jest.fn(),
+jest.mock("metabase/questions/actions", () => ({
+  loadMetadataForCardId: jest.fn(),
 }));
 
 jest.mock("metabase/redux/tables", () => ({ fetchTableMetadata: jest.fn() }));
@@ -20,15 +20,14 @@ jest.mock("metabase/selectors/metadata", () => ({ getMetadata: jest.fn() }));
 const createMetabaseQueryFromMetadataMock =
   createMetabaseQueryFromMetadata as jest.Mock;
 
-const fetchCardQueryMetadataMock =
-  fetchCardQueryMetadata as unknown as jest.Mock;
+const loadMetadataForCardIdMock = loadMetadataForCard as unknown as jest.Mock;
 
 const fetchTableMetadataMock = fetchTableMetadata as unknown as jest.Mock;
 const getMetadataMock = getMetadata as unknown as jest.Mock;
 
 const STATE = {};
 const METADATA = {};
-const FETCH_CARD_QUERY_METADATA_ACTION = {};
+const LOAD_METADATA_FOR_CARD_ID_ACTION = {};
 const FETCH_TABLE_METADATA_ACTION = {};
 
 const DATASET_QUERY = {
@@ -51,9 +50,7 @@ describe("createMetabaseQuery", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    fetchCardQueryMetadataMock.mockReturnValue(
-      FETCH_CARD_QUERY_METADATA_ACTION,
-    );
+    loadMetadataForCardIdMock.mockReturnValue(LOAD_METADATA_FOR_CARD_ID_ACTION);
 
     fetchTableMetadataMock.mockReturnValue(FETCH_TABLE_METADATA_ACTION);
     getMetadataMock.mockReturnValue(METADATA);
@@ -117,13 +114,10 @@ describe("createMetabaseQuery", () => {
     const result = await createMetabaseQuery(store)({ query: METRIC_QUERY });
 
     expect(fetchTableMetadata).not.toHaveBeenCalled();
-    expect(fetchCardQueryMetadata).toHaveBeenCalledWith(
-      { id: 34 },
-      { reload: false },
-    );
+    expect(loadMetadataForCard).toHaveBeenCalledWith(34, { reload: false });
 
     expect(store.dispatch).toHaveBeenCalledWith(
-      FETCH_CARD_QUERY_METADATA_ACTION,
+      LOAD_METADATA_FOR_CARD_ID_ACTION,
     );
 
     expect(getMetadata).toHaveBeenCalledWith(STATE);
@@ -144,9 +138,6 @@ describe("createMetabaseQuery", () => {
       reloadMetadata: true,
     });
 
-    expect(fetchCardQueryMetadata).toHaveBeenCalledWith(
-      { id: 34 },
-      { reload: true },
-    );
+    expect(loadMetadataForCard).toHaveBeenCalledWith(34, { reload: true });
   });
 });
