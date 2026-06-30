@@ -1,0 +1,56 @@
+name: CI Conductor quarantine gate (dry run)
+description: >-
+  Check this job's test failures against ci-conductor's quarantine list and print
+  a verdict. DRY RUN — it never fails the job. No-ops unless CI_CONDUCTOR_BASE_URL
+  is set.
+
+inputs:
+  suite:
+    description: Which suite's gate to run — one of `backend`, `frontend`, `e2e`.
+    required: true
+  test-suite:
+    description: >-
+      Suite label to gate (CI_CONDUCTOR_TEST_SUITE). MUST match the label this
+      job reports under, or the gate checks the wrong quarantine list.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Detect bun
+      id: bun
+      shell: bash
+      run: |
+        if command -v bun >/dev/null; then
+          echo "present=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "present=false" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Install bun
+      if: steps.bun.outputs.present != 'true'
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      with:
+        bun-version: "1.3.14"
+        token: ${{ github.token }}
+    - name: Resolve the gate for this suite
+      id: gate
+      shell: bash
+      env:
+        SUITE: ${{ inputs.suite }}
+      run: |
+        case "$SUITE" in
+          backend)  entrypoint=release/ci-conductor/src/check-backend.ts ;;
+          frontend) entrypoint=release/ci-conductor/src/check-frontend.ts ;;
+          e2e)      entrypoint=e2e/support/check-quarantine.ts ;;
+          *) echo "::error::quarantine-gate: unknown suite '$SUITE' (expected backend|frontend|e2e)"; exit 1 ;;
+        esac
+        echo "entrypoint=$entrypoint" >> "$GITHUB_OUTPUT"
+    - name: Check failures against the quarantine list
+      shell: bash
+      env:
+        CI_CONDUCTOR_TEST_SUITE: ${{ inputs.test-suite }}
+        # Stay observational: the gate computes a verdict but never fails the job
+        # while this is "true". Flipping it to "false" (to actually enforce) is a
+        # deliberate, separate change — not something a caller should do casually.
+        QUARANTINE_DRY_RUN: "true"
+      run: bun ${{ steps.gate.outputs.entrypoint }}
