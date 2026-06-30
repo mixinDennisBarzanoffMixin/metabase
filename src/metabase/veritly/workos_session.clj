@@ -287,3 +287,9 @@
 (defn set-session-cookie
   [request res sealed]
   (response/set-cookie res cookie sealed (attrs request)))
+
+(defn clear-session-cookie
+  [request res]
+  (response/set-cookie res cookie nil (assoc (attrs request)
+                                             :expires "Thu, 1 Jan 1970 00:00:00 GMT"
+                                             :max-age 0)))

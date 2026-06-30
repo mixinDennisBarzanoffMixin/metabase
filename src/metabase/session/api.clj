@@ -21,6 +21,7 @@
    [metabase.util.malli :as mu]
    [metabase.util.malli.schema :as ms]
    [metabase.util.password :as u.password]
+   [metabase.veritly.workos-session :as workos]
    [throttle.core :as throttle]
    [toucan2.core :as t2]))
 
@@ -148,12 +149,17 @@
 (api.macros/defendpoint :delete "/"
   "Logout."
   ;; `metabase-session-key` gets added automatically by the [[metabase.server.middleware.session]] middleware
-  [_route-params _query-params _body {:keys [metabase-session-key], :as _request}]
-  (api/check-404 (not-empty metabase-session-key))
-  (let [session-key-hashed (session/hash-session-key metabase-session-key)
-        rows-deleted (t2/delete! :model/Session {:where [:or [:= :key_hashed session-key-hashed] [:= :id metabase-session-key]]})]
-    (api/check-404 (> rows-deleted 0))
-    (request/clear-session-cookie api/generic-204-no-content)))
+  [_route-params _query-params _body {:keys [metabase-session-key], :as request}]
+  (api/check-404 (or (not-empty metabase-session-key)
+                     (workos/session-cookie request)))
+  (when (not-empty metabase-session-key)
+    (let [session-key-hashed (session/hash-session-key metabase-session-key)
+          rows-deleted (t2/delete! :model/Session {:where [:or [:= :key_hashed session-key-hashed] [:= :id metabase-session-key]]})]
+      (api/check-404 (> rows-deleted 0))))
+  (let [response (request/clear-session-cookie api/generic-204-no-content)]
+    (if (workos/session-cookie request)
+      (workos/clear-session-cookie request response)
+      response)))
 
 ;; Reset tokens: We need some way to match a plaintext token with the a user since the token stored in the DB is
 ;; hashed. So we'll make the plaintext token in the format USER-ID_RANDOM-UUID, e.g.

@@ -1,7 +1,8 @@
 (ns metabase.server.middleware.session
   "Ring middleware related to session and API-key based authentication (binding current user and permissions).
 
-  How do authenticated API requests work? There are two main paths to authentication: a session or an API key.
+  How do authenticated API requests work? Veritly browser requests authenticate from the WorkOS session cookie and bind
+  the matching Metabase user directly. Non-Veritly requests can still authenticate with a Metabase session or API key.
 
   For session authentication, Metabase first looks for a cookie called `metabase.SESSION`. This is the normal way of
   doing things; this cookie gets set automatically upon login. `metabase.SESSION` is an HttpOnly cookie and thus can't
@@ -24,7 +25,7 @@
    [metabase.api-keys.schema :as api-keys.schema]
    [metabase.api.macros.scope :as scope]
    [metabase.app-db.core :as mdb]
-   [metabase.auth-identity.core :as auth-identity]
+   [metabase.auth-identity.providers.veritly :as veritly-provider]
    [metabase.config.core :as config]
    [metabase.initialization-status.core :as init-status]
    [metabase.oauth-server.core :as oauth-server]
@@ -41,7 +42,7 @@
    [metabase.util.malli.registry :as mr]
    [metabase.util.password :as u.password]
    [metabase.util.string :as string]
-   [metabase.veritly.workos-session :as veritly]
+   [metabase.veritly.workos-session :as workos]
    [toucan2.core :as t2]
    [toucan2.pipeline :as t2.pipeline]))
 
@@ -85,53 +86,20 @@
      (wrap-session-key-with-strategy strategy request))
    [:embedded-cookie :normal-cookie :header]))
 
-(defn- veritly-login
+(defn- veritly-request?
   [request]
-  (when (and (not (:metabase-session-key request))
-             (init-status/complete?)
-             (veritly/session-cookie request))
-    (try
-      (when-let [workos (veritly/authenticate request)]
-        (let [result (auth-identity/login! :provider/veritly
-                                           {:workos workos
-                                            :device-info (request/device-info request)})]
-          (when (:success? result)
-            (cond-> (assoc request
-                           :metabase-session-key (str (get-in result [:session :key]))
-                           :metabase-session-type :normal
-                           :veritly-session (:session result))
-              (:sealed workos) (assoc :veritly-workos-session (:sealed workos))))))
-      (catch Exception e
-        (log/warn e "Veritly session login failed")
-        nil))))
-
-(defn- add-veritly-cookies
-  [request response request-time]
-  (let [response (if-let [session (:veritly-session request)]
-                   (request/set-session-cookies request response session request-time)
-                   response)]
-    (if-let [sealed (:veritly-workos-session request)]
-      (veritly/set-session-cookie request response sealed)
-      response)))
+  (boolean (workos/session-cookie request)))
 
 (defn wrap-session-key
-  "Middleware that sets the `:metabase-session-key` keyword on the request if a session id can be found.
-  We first check the request :cookies for `metabase.SESSION`, then if no cookie is found we look in the http headers
-  for `X-METABASE-SESSION`. If neither is found then no keyword is bound to the request."
+  "Middleware that sets `:metabase-session-key` for non-Veritly requests. If a WorkOS cookie is present, do not read
+  Metabase session cookies; WorkOS owns the browser identity."
   [handler]
   (fn [request respond raise]
-    (let [request-time (t/zoned-date-time (t/zone-id "GMT"))
-          request (or (wrap-session-key-with-strategy :best request)
-                      request)
-          request (if (:metabase-session-key request)
-                    request
-                    (if-let [request' (veritly-login request)]
-                      request'
-                      request))]
-      (handler request
-               (fn [response]
-                 (respond (add-veritly-cookies request response request-time)))
-               raise))))
+    (let [request (if (veritly-request? request)
+                    (assoc request :veritly-session? true)
+                    (or (wrap-session-key-with-strategy :best request)
+                        request))]
+      (handler request respond raise))))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                             wrap-current-user-info                                             |
@@ -344,42 +312,80 @@
                 (m/update-existing :is-group-manager? boolean)
                 (assoc :token-scopes (oauth-token->token-scopes scopes)))))))
 
+(mu/defn- current-user-info-for-veritly :- [:maybe ::request.schema/current-user-info]
+  "Return current-user-info from a Veritly WorkOS session without using Metabase sessions."
+  [request]
+  (when (and (init-status/complete?)
+             (workos/session-cookie request))
+    (try
+      (when-let [workos (workos/authenticate request)]
+        (when-let [user (veritly-provider/resolve-user! workos)]
+          (when-let [info (some-> (t2/query-one (cons (user-data-for-id-query (premium-features/enable-advanced-permissions?))
+                                                       [(:id user)]))
+                                   (m/update-existing :is-group-manager? boolean)
+                                   (assoc :auth-provider "veritly"
+                                          :veritly-clear-session? true))]
+            (cond-> info
+              (:sealed workos) (assoc :veritly-workos-session (:sealed workos))))))
+      (catch Exception e
+        (log/warn e "Veritly request authentication failed")
+        nil))))
+
 (defn- auth-method
-  [session-info api-key-info oauth-info embedding-route]
+  [veritly-info session-info api-key-info oauth-info embedding-route]
   (or ({"guest-embed" "guest"} embedding-route embedding-route)
-      (cond session-info (or (:auth-provider session-info) "session")
+      (cond veritly-info (or (:auth-provider veritly-info) "veritly")
+            session-info (or (:auth-provider session-info) "session")
             api-key-info "api-key"
             oauth-info   "oauth")))
 
 (defn- merge-current-user-info
   [{:keys [metabase-session-key anti-csrf-token], {:strs [x-metabase-locale x-api-key]} :headers, :as request}]
-  (let [session-info (current-user-info-for-session metabase-session-key anti-csrf-token)
-        api-key-info (when-not session-info (current-user-info-for-api-key x-api-key))
+  (let [veritly? (:veritly-session? request)
+        veritly-info (when veritly?
+                       (current-user-info-for-veritly request))
+        session-info (when-not veritly?
+                       (current-user-info-for-session metabase-session-key anti-csrf-token))
+        api-key-info (when-not (or veritly? veritly-info session-info)
+                       (current-user-info-for-api-key x-api-key))
         ;; Bearer is the lowest-precedence path: only consulted when there's no session or API key.
-        oauth-info   (when-not (or session-info api-key-info)
+        oauth-info   (when-not (or veritly? veritly-info session-info api-key-info)
                        (current-user-info-for-oauth-token request))
         embedding-route (analytics/get-route)
-        auth-method (auth-method session-info api-key-info oauth-info embedding-route)]
+        auth-method (auth-method veritly-info session-info api-key-info oauth-info embedding-route)]
     (merge
      request
      ;; oauth-info carries `:token-scopes` in addition to the standard current-user-info keys, so
      ;; merging it whole both authenticates the request and records the granted scopes.
-     (dissoc (or session-info api-key-info oauth-info) :auth-provider)
+     (dissoc (or veritly-info session-info api-key-info oauth-info) :auth-provider)
+     (when veritly?
+       {:veritly-clear-session? true})
      (when auth-method {:embedding/auth-method auth-method})
      (when x-metabase-locale
        (log/tracef "Found X-Metabase-Locale header: using %s as user locale" (pr-str x-metabase-locale))
        {:user-locale (i18n/normalized-locale-string x-metabase-locale)}))))
 
+(defn- add-veritly-cookies
+  [request response]
+  (let [response (if (:veritly-clear-session? request)
+                   (request/clear-session-cookie response)
+                   response)]
+    (if-let [sealed (:veritly-workos-session request)]
+      (workos/set-session-cookie request response sealed)
+      response)))
+
 (defn wrap-current-user-info
-  "Add `:metabase-user-id`, `:is-superuser?`, `:is-group-manager?` and `:user-locale` to the request if a valid session
-  token, API key, OR OAuth bearer access token was passed. A bearer token additionally sets `:token-scopes` (the access
-  it was granted); precedence is session > API key > bearer."
+  "Add `:metabase-user-id`, `:is-superuser?`, `:is-group-manager?` and `:user-locale` to the request if a valid Veritly
+  WorkOS cookie, session token, API key, or OAuth bearer token was passed. WorkOS wins for browser requests."
   [handler]
   (fn [request respond raise]
     (let [request' (tracing/with-span :db-app "db-app.session-lookup" {}
                      (merge-current-user-info request))]
       (analytics/with-auth-method! (:embedding/auth-method request')
-        (handler request' respond raise)))))
+        (handler request'
+                 (fn [response]
+                   (respond (add-veritly-cookies request' response)))
+                 raise)))))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                               bind-current-user                                                |
