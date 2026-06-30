@@ -238,7 +238,7 @@
                                  (when config/is-dev?
                                    (str "http://localhost:" cljs-dev-port))
                                  "https://accounts.google.com"]
-                  :style-src-attr ["'self'"]
+                  :style-src-attr ["'unsafe-inline'"]
                   :frame-src    (parse-allowed-iframe-hosts (server.settings/allowed-iframe-hosts))
                   :font-src     (into (cond-> always-allowed-resource-hosts
                                         config/is-dev? (conj frontend-address))
@@ -367,9 +367,10 @@
       (merge
        (when (or (approved-origin? origin all-origins) mcp-sandbox?)
          {"Access-Control-Allow-Origin" origin
+          "Access-Control-Allow-Credentials" "true"
           "Vary"                        "Origin"})
-       {"Access-Control-Allow-Headers"  "*"
-        "Access-Control-Allow-Methods"  "*"
+       {"Access-Control-Allow-Headers"  "Authorization, Content-Type, X-Metabase-Anti-CSRF-Token, X-Metabase-Session, X-Requested-With, X-Veritly-Project-Id"
+        "Access-Control-Allow-Methods"  "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         "Access-Control-Expose-Headers" "Content-Disposition, X-Metabase-Anti-CSRF-Token, X-Metabase-Version, Mcp-Session-Id"
         ;; Needed for Embedding SDK. Should cache preflight requests for the specified number of seconds.
         "Access-Control-Max-Age"  "60"}))))
@@ -416,8 +417,8 @@
                  :allow-cache?   (request/cacheable? request))
         cors-headers (when (always-allow-cors? request response)
                        {"Access-Control-Allow-Origin" "*"
-                        "Access-Control-Allow-Headers" "*"
-                        "Access-Control-Allow-Methods" "*"})]
+                        "Access-Control-Allow-Headers" "Authorization, Content-Type, X-Metabase-Anti-CSRF-Token, X-Metabase-Session, X-Requested-With, X-Veritly-Project-Id"
+                        "Access-Control-Allow-Methods" "GET, POST, PUT, PATCH, DELETE, OPTIONS"})]
     (update response :headers #(merge %2 %1 cors-headers) headers)))
 
 (defn add-security-headers

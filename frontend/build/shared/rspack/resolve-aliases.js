@@ -25,6 +25,8 @@ const CLJS_SRC_PATH = ROOT_PATH + "/target/cljs_release";
 const CLJS_SRC_PATH_DEV = ROOT_PATH + "/target/cljs_dev";
 const TEST_SUPPORT_PATH = ROOT_PATH + "/frontend/test/__support__";
 const E2E_PATH = ROOT_PATH + "/e2e";
+const REACT_PATH = path.dirname(require.resolve("react/package.json"));
+const REACT_DOM_PATH = path.dirname(require.resolve("react-dom/package.json"));
 
 const isDevMode = IS_DEV_MODE;
 
@@ -38,6 +40,8 @@ const resolveEnterprisePathOrNoop = (/** @type {string} */ subpath) =>
  * e2e/support/component-webpack.config.js
  */
 const RESOLVE_ALIASES = {
+  react: REACT_PATH,
+  "react-dom": REACT_DOM_PATH,
   "build-configs": FRONTEND_BUILD_CONFIGS_PATH,
   assets: ASSETS_PATH,
   img: IMAGES_PATH,

@@ -7,6 +7,7 @@ import { NavbarPromoCard } from "metabase/nav/components/NavbarPromoCard";
 import { useDispatch, useSelector } from "metabase/redux";
 import { updateSetting } from "metabase/redux/settings";
 import { getIsEmbeddingIframe } from "metabase/selectors/embed";
+import { getUserIsAdmin } from "metabase/selectors/user";
 import { getIsWhiteLabeling } from "metabase/selectors/whitelabel";
 
 import Sparkles from "./sparkles.svg?component";
@@ -15,7 +16,10 @@ import { getLatestEligibleReleaseNotes } from "./utils";
 export function WhatsNewNotification() {
   const dispatch = useDispatch();
   const isEmbeddingIframe = useSelector(getIsEmbeddingIframe);
-  const { data: versionInfo } = useGetVersionInfoQuery();
+  const isAdmin = useSelector(getUserIsAdmin);
+  const { data: versionInfo } = useGetVersionInfoQuery(undefined, {
+    skip: !isAdmin,
+  });
   const currentVersion = useSetting("version");
   const lastAcknowledgedVersion = useSetting("last-acknowledged-version");
   const isWhiteLabeling = useSelector(getIsWhiteLabeling);
@@ -47,7 +51,7 @@ export function WhatsNewNotification() {
     );
   }, [currentVersion.tag, dispatch]);
 
-  if (!url) {
+  if (!isAdmin || !url) {
     return null;
   }
 

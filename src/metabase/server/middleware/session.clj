@@ -24,6 +24,7 @@
    [metabase.api-keys.schema :as api-keys.schema]
    [metabase.api.macros.scope :as scope]
    [metabase.app-db.core :as mdb]
+   [metabase.auth-identity.core :as auth-identity]
    [metabase.config.core :as config]
    [metabase.initialization-status.core :as init-status]
    [metabase.oauth-server.core :as oauth-server]
@@ -40,6 +41,7 @@
    [metabase.util.malli.registry :as mr]
    [metabase.util.password :as u.password]
    [metabase.util.string :as string]
+   [metabase.veritly.workos-session :as veritly]
    [toucan2.core :as t2]
    [toucan2.pipeline :as t2.pipeline]))
 
@@ -83,15 +85,53 @@
      (wrap-session-key-with-strategy strategy request))
    [:embedded-cookie :normal-cookie :header]))
 
+(defn- veritly-login
+  [request]
+  (when (and (not (:metabase-session-key request))
+             (init-status/complete?)
+             (veritly/session-cookie request))
+    (try
+      (when-let [workos (veritly/authenticate request)]
+        (let [result (auth-identity/login! :provider/veritly
+                                           {:workos workos
+                                            :device-info (request/device-info request)})]
+          (when (:success? result)
+            (cond-> (assoc request
+                           :metabase-session-key (str (get-in result [:session :key]))
+                           :metabase-session-type :normal
+                           :veritly-session (:session result))
+              (:sealed workos) (assoc :veritly-workos-session (:sealed workos))))))
+      (catch Exception e
+        (log/warn e "Veritly session login failed")
+        nil))))
+
+(defn- add-veritly-cookies
+  [request response request-time]
+  (let [response (if-let [session (:veritly-session request)]
+                   (request/set-session-cookies request response session request-time)
+                   response)]
+    (if-let [sealed (:veritly-workos-session request)]
+      (veritly/set-session-cookie request response sealed)
+      response)))
+
 (defn wrap-session-key
   "Middleware that sets the `:metabase-session-key` keyword on the request if a session id can be found.
   We first check the request :cookies for `metabase.SESSION`, then if no cookie is found we look in the http headers
   for `X-METABASE-SESSION`. If neither is found then no keyword is bound to the request."
   [handler]
   (fn [request respond raise]
-    (let [request (or (wrap-session-key-with-strategy :best request)
-                      request)]
-      (handler request respond raise))))
+    (let [request-time (t/zoned-date-time (t/zone-id "GMT"))
+          request (or (wrap-session-key-with-strategy :best request)
+                      request)
+          request (if (:metabase-session-key request)
+                    request
+                    (if-let [request' (veritly-login request)]
+                      request'
+                      request))]
+      (handler request
+               (fn [response]
+                 (respond (add-veritly-cookies request response request-time)))
+               raise))))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                             wrap-current-user-info                                             |
