@@ -68,6 +68,7 @@ export const getIsAppSwitcherVisible = createSelector(
 const PATHS_WITHOUT_NAVBAR = [
   /^\/setup/,
   /^\/auth/,
+  /^\/veritly/,
   /^\/data-studio/,
   /\/model\/.*\/query/,
   /\/model\/.*\/columns/,

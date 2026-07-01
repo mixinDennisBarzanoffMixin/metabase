@@ -66,6 +66,11 @@
      #(u/ignore-exceptions (driver/the-driver %))]]
    (deferred-tru "value must be a valid database engine.")))
 
+(defn- check-source-editor
+  []
+  (when-not (veritly.projects/project-bound?)
+    (api/check-superuser)))
+
 ;;; ----------------------------------------------- GET /api/database ------------------------------------------------
 
 (defn- add-tables
@@ -924,7 +929,7 @@
        [:cache_ttl         {:optional true}  [:maybe ms/PositiveInt]]
        [:connection_source {:default :admin} [:maybe [:enum :admin :setup]]]
        [:provider_name     {:optional true}  [:maybe :string]]]]
-  (api/check-superuser)
+  (check-source-editor)
   (when (true? (:is_stub body))
     (throw (ex-info (tru "is_stub may not be set via the API")
                     {:status-code 400})))
@@ -983,7 +988,7 @@
                                            [:details [:map
                                                       [:engine  DBEngineString]
                                                       [:details :map]]]]]
-  (api/check-superuser)
+  (check-source-editor)
   (let [details-or-error (warehouses/test-connection-details engine details)]
     ;; details that come back without a `:valid` key at all are... valid!
     (update details-or-error :valid (comp not false?))))

@@ -19,6 +19,8 @@ export const useDatabaseConnection = ({
 }: UseDatabaseConnectionProps) => {
   const dispatch = useDispatch();
   const queryParams = new URLSearchParams(location.search);
+  const file = location.pathname.includes("/veritly/source");
+  const name = queryParams.get("name");
   const preselectedEngine =
     queryParams.get("engine") ?? getDefaultEngineKey(engines || {});
   const fromEmbeddingSetupGuide = queryParams.has(RETURN_TO_SETUP_GUIDE_PARAM);
@@ -30,12 +32,19 @@ export const useDatabaseConnection = ({
 
   const database = databaseReq.currentData ?? {
     id: undefined,
+    name: name ? name : undefined,
     is_attached_dwh: false,
     router_user_attribute: undefined,
     engine: preselectedEngine,
   };
 
   const handleCancel = () => {
+    if (file) {
+      if (database?.id) {
+        dispatch(push(`/veritly/source/${database.id}`));
+      }
+      return;
+    }
     dispatch(
       database?.id
         ? push(`/admin/databases/${database.id}`)
@@ -44,6 +53,17 @@ export const useDatabaseConnection = ({
   };
 
   const handleOnSubmit = (savedDB: { id: DatabaseId }) => {
+    if (file) {
+      window.parent.postMessage(
+        {
+          type: "veritly.metabase.source.saved",
+          databaseId: savedDB.id,
+        },
+        "*",
+      );
+      dispatch(push(`/veritly/source/${savedDB.id}`));
+      return;
+    }
     if (addingNewDatabase) {
       const param = fromEmbeddingSetupGuide
         ? `?${RETURN_TO_SETUP_GUIDE_PARAM}=true`

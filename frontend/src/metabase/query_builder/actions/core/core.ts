@@ -58,6 +58,20 @@ import { zoomInRow } from "../zoom";
 import { loadCard } from "./card";
 import { updateQuestion } from "./updateQuestion";
 
+function postVeritlyQuestionSaved(card: Card) {
+  if (!location.pathname.includes("/veritly/question")) {
+    return;
+  }
+  window.parent.postMessage(
+    {
+      type: "veritly.metabase.question.saved",
+      cardId: card.id,
+      name: card.name,
+    },
+    "*",
+  );
+}
+
 // refreshes the card without triggering a run of the card's query
 export const softReloadCard = createThunkAction(SOFT_RELOAD_CARD, () => {
   return async (dispatch, getState) => {
@@ -252,6 +266,7 @@ export const apiCreateQuestion = (
     // Saving a card, locks in the current display as though it had been
     // selected in the UI.
     const createdCard = createdQuestion.lockDisplay().card();
+    postVeritlyQuestionSaved(createdCard);
     dispatch({ type: API_CREATE_QUESTION, payload: createdCard });
 
     await dispatch(loadMetadataForCard(createdCard));
@@ -312,6 +327,7 @@ export const apiUpdateQuestion = (
         excludeVisualisationSettings: isMetric,
       },
     );
+    postVeritlyQuestionSaved(updatedQuestion.card());
 
     // invalidate question notifications
     // (some of the old alerts might be removed during update)
