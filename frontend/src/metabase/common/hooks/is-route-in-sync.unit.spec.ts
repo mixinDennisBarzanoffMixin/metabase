@@ -9,6 +9,7 @@ describe("isRouteInSync", () => {
 
   beforeEach(() => {
     delete (window as any).overrideIsWithinIframe;
+    delete window.MetabaseRoot;
   });
 
   afterAll(() => {
@@ -32,6 +33,18 @@ describe("isRouteInSync", () => {
       const result = isRouteInSync("/some/path");
 
       expect(result).toBe(false);
+    });
+
+    it("should strip the active Metabase root from project scoped routes", () => {
+      window.MetabaseRoot = "/project/acme/";
+      window.history.pushState(
+        {},
+        "",
+        "/project/acme/veritly/question/notebook",
+      );
+      const result = isRouteInSync("/veritly/question/notebook");
+
+      expect(result).toBe(true);
     });
   });
 
