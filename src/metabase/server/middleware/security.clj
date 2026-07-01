@@ -192,8 +192,11 @@
        vec))
 
 (def ^:private frontend-dev-port (or (env/env :mb-frontend-dev-port) "8080"))
-(def ^:private frontend-address (str "http://localhost:" frontend-dev-port))
+(def ^:private frontend-address
+  (or (env/env :mb-frontend-dev-origin) (str "http://localhost:" frontend-dev-port)))
 (def ^:private cljs-dev-port (or (env/env :mb-cljs-dev-port) "9630"))
+(def ^:private cljs-address
+  (or (env/env :mb-cljs-dev-origin) (str "http://localhost:" cljs-dev-port)))
 
 (defn- content-security-policy-header
   "`Content-Security-Policy` header. See https://content-security-policy.com for more details."
@@ -222,7 +225,7 @@
                                  ;; CLJS REPL
                                  (when config/is-dev?
                                    ["'unsafe-eval'"
-                                    (str "http://localhost:" cljs-dev-port)])
+                                    cljs-address])
                                  (when-not config/is-dev?
                                    (map (partial format "'sha256-%s'") inline-js-hashes)))
                   :child-src    ["'self'"
@@ -236,7 +239,7 @@
                                    frontend-address)
                                  ;; CLJS REPL
                                  (when config/is-dev?
-                                   (str "http://localhost:" cljs-dev-port))
+                                   cljs-address)
                                  "https://accounts.google.com"]
                   :style-src-attr ["'unsafe-inline'"]
                   :frame-src    (parse-allowed-iframe-hosts (server.settings/allowed-iframe-hosts))

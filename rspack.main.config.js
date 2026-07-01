@@ -40,6 +40,10 @@ const BUILD_PATH = __dirname + "/resources/frontend_client";
 const SDK_DOCS_SNIPPETS_PATH = __dirname + "/docs/embedding/sdk/snippets";
 
 const PORT = process.env.MB_FRONTEND_DEV_PORT || 8080;
+const DEV_ORIGIN = (
+  process.env.MB_FRONTEND_DEV_ORIGIN || `http://localhost:${PORT}`
+).replace(/\/+$/, "");
+const DEV_HOST = new URL(DEV_ORIGIN).hostname;
 const isDevMode = IS_DEV_MODE;
 const shouldEnableHotRefresh = WEBPACK_BUNDLE === "hot";
 
@@ -48,9 +52,11 @@ const shouldEnableHotRefresh = WEBPACK_BUNDLE === "hot";
 // your custom domain via the `MB_TEST_CUSTOM_DOMAINS` environment variable so
 // that rspack will allow requests from them.
 const TEST_CUSTOM_DOMAINS =
-  process.env.MB_TEST_CUSTOM_DOMAINS?.split(",")
-    .map((domain) => domain.trim())
-    .filter(Boolean) ?? [];
+  process.env.MB_TEST_CUSTOM_DOMAINS
+    ? process.env.MB_TEST_CUSTOM_DOMAINS.split(",")
+        .map((domain) => domain.trim())
+        .filter(Boolean)
+    : [];
 
 const BABEL_LOADER = { loader: "babel-loader", options: BABEL_CONFIG };
 
@@ -337,8 +343,7 @@ if (shouldEnableHotRefresh) {
   config.output.filename = "[name].hot.bundle.js";
 
   // point the publicPath (inlined in index.html by HtmlWebpackPlugin) to the hot-reloading server
-  config.output.publicPath =
-    `http://localhost:${PORT}/` + config.output.publicPath;
+  config.output.publicPath = `${DEV_ORIGIN}/` + config.output.publicPath;
 
   // Disable lazy compilation explicitly to match behavior of rspack 1.x
   config.lazyCompilation = false;
@@ -353,7 +358,9 @@ if (shouldEnableHotRefresh) {
     headers: {
       "Access-Control-Allow-Origin": "*",
     },
-    allowedHosts: ["localhost", ...TEST_CUSTOM_DOMAINS],
+    allowedHosts: Array.from(
+      new Set(["localhost", DEV_HOST, ...TEST_CUSTOM_DOMAINS]),
+    ),
     // tweak stats to make the output in the console more legible
     devMiddleware: {
       stats: { preset: "errors-warnings", timings: true },
