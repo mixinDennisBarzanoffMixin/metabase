@@ -43,7 +43,8 @@ const PORT = process.env.MB_FRONTEND_DEV_PORT || 8080;
 const DEV_ORIGIN = (
   process.env.MB_FRONTEND_DEV_ORIGIN || `http://localhost:${PORT}`
 ).replace(/\/+$/, "");
-const DEV_HOST = new URL(DEV_ORIGIN).hostname;
+const DEV_URL = new URL(DEV_ORIGIN);
+const DEV_HOST = DEV_URL.hostname;
 const isDevMode = IS_DEV_MODE;
 const shouldEnableHotRefresh = WEBPACK_BUNDLE === "hot";
 
@@ -354,6 +355,18 @@ if (shouldEnableHotRefresh) {
     client: {
       progress: false,
       overlay: false,
+      webSocketURL: {
+        protocol: DEV_URL.protocol.replace(/^http/, "ws"),
+        hostname: DEV_HOST,
+        port: Number(DEV_URL.port || PORT),
+        pathname: "/ws",
+      },
+    },
+    webSocketServer: {
+      type: "ws",
+      options: {
+        path: "/ws",
+      },
     },
     headers: {
       "Access-Control-Allow-Origin": "*",

@@ -14,8 +14,7 @@
   [project-id]
   (let [root (t2/insert-returning-instance! :model/Collection
                                             {:name     (root-name project-id)
-                                             :location "/"
-                                             :color    "#509EE3"})]
+                                             :location "/"})]
     (t2/insert! :veritly_project
                 {:project_id         project-id
                  :root_collection_id (:id root)})
