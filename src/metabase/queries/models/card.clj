@@ -48,6 +48,7 @@
    [metabase.util.json :as json]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
+   [metabase.veritly.projects :as veritly.projects]
    [methodical.core :as methodical]
    [toucan2.core :as t2]
    [toucan2.pipeline :as t2.pipeline]
@@ -132,18 +133,28 @@
 (defmethod mi/can-write? :model/Card
   ([instance]
    ;; Cards in audit collection should not be writable.
-   (and
-    (not (and
-          ;; We want to make sure there's an existing audit collection before doing the equality check below.
-          ;; If there is no audit collection, this will be nil:
-          (some? (:id (audit/default-audit-collection)))
-          ;; Is a direct descendant of audit collection
-          (= (:collection_id instance) (:id (audit/default-audit-collection)))))
-    (mi/current-user-has-full-permissions? (mi/perms-objects-set instance :write))))
+   (if (veritly.projects/project-bound?)
+     (veritly.projects/card-in-project? (:id instance))
+     (and
+      (not (and
+            ;; We want to make sure there's an existing audit collection before doing the equality check below.
+            ;; If there is no audit collection, this will be nil:
+            (some? (:id (audit/default-audit-collection)))
+            ;; Is a direct descendant of audit collection
+            (= (:collection_id instance) (:id (audit/default-audit-collection)))))
+      (mi/current-user-has-full-permissions? (mi/perms-objects-set instance :write)))))
   ([_ pk]
    (mi/can-write? (t2/select-one :model/Card :id pk))))
 
 (perms/define-collection-based-visibility! :model/Card)
+
+(defmethod mi/can-read? :model/Card
+  ([instance]
+   (if (veritly.projects/project-bound?)
+     (veritly.projects/card-in-project? (:id instance))
+     (perms/can-read-via-parent-collection? (:collection_id instance))))
+  ([_ pk]
+   (mi/can-read? (t2/select-one :model/Card :id pk))))
 
 (defn model?
   "Returns true if `card` is a model."

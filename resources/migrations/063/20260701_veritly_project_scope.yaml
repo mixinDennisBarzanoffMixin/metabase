@@ -1,0 +1,123 @@
+## Veritly project ownership for Metabase content roots.
+
+databaseChangeLog:
+  - changeSet:
+      id: v63.2026-07-01T00:00:00
+      author: veritly
+      comment: Create Veritly project root mapping table
+      changes:
+        - createTable:
+            tableName: veritly_project
+            remarks: Maps a Veritly project id to the Metabase collection root that owns project-scoped content
+            columns:
+              - column:
+                  name: project_id
+                  type: varchar(254)
+                  remarks: Veritly project id
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: root_collection_id
+                  type: int
+                  remarks: Root collection for this Veritly project
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: created_at
+                  type: ${timestamp_type}
+                  remarks: When this mapping was created
+                  defaultValueComputed: current_timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: ${timestamp_type}
+                  remarks: When this mapping was last updated
+                  defaultValueComputed: current_timestamp
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: v63.2026-07-01T00:00:01
+      author: veritly
+      comment: Add FK for Veritly project root collection
+      changes:
+        - addForeignKeyConstraint:
+            baseTableName: veritly_project
+            baseColumnNames: root_collection_id
+            referencedTableName: collection
+            referencedColumnNames: id
+            constraintName: fk_veritly_project_root_collection_id
+            onDelete: CASCADE
+      rollback:
+        - dropForeignKeyConstraint:
+            baseTableName: veritly_project
+            constraintName: fk_veritly_project_root_collection_id
+
+  - changeSet:
+      id: v63.2026-07-01T00:00:02
+      author: veritly
+      comment: Create Veritly project database binding table
+      changes:
+        - createTable:
+            tableName: veritly_project_database
+            remarks: Databases connected to a Veritly project
+            columns:
+              - column:
+                  name: project_id
+                  type: varchar(254)
+                  remarks: Veritly project id
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: database_id
+                  type: int
+                  remarks: Metabase database id
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                    unique: true
+              - column:
+                  name: created_at
+                  type: ${timestamp_type}
+                  remarks: When this binding was created
+                  defaultValueComputed: current_timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: ${timestamp_type}
+                  remarks: When this binding was last updated
+                  defaultValueComputed: current_timestamp
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: v63.2026-07-01T00:00:03
+      author: veritly
+      comment: Add FKs for Veritly project database bindings
+      changes:
+        - addForeignKeyConstraint:
+            baseTableName: veritly_project_database
+            baseColumnNames: project_id
+            referencedTableName: veritly_project
+            referencedColumnNames: project_id
+            constraintName: fk_veritly_project_database_project_id
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            baseTableName: veritly_project_database
+            baseColumnNames: database_id
+            referencedTableName: metabase_database
+            referencedColumnNames: id
+            constraintName: fk_veritly_project_database_database_id
+            onDelete: CASCADE
+      rollback:
+        - dropForeignKeyConstraint:
+            baseTableName: veritly_project_database
+            constraintName: fk_veritly_project_database_database_id
+        - dropForeignKeyConstraint:
+            baseTableName: veritly_project_database
+            constraintName: fk_veritly_project_database_project_id

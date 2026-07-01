@@ -19,10 +19,14 @@
 
 (set! *warn-on-reflection* true)
 
+(defn- strip-project-prefix
+  [uri]
+  (str/replace-first uri #"^/project/[^/]+" ""))
+
 (defn api-call?
-  "Is this ring request an API call (does path start with `/api`)?"
+  "Is this ring request an API call?"
   [{:keys [^String uri]}]
-  (str/starts-with? uri "/api"))
+  (str/starts-with? (strip-project-prefix uri) "/api"))
 
 (defn auth-call?
   "Is this ring request an auth call (does path start with `/auth`)?"
@@ -42,14 +46,15 @@
 (defn cacheable?
   "Can the ring request be permanently cached?"
   [{:keys [request-method uri], :as _request}]
-  (and (= request-method :get)
-       (or
-        ;; match requests that are js/css and have a cache-busting hex string
-        (re-matches #"^/app/dist/.+\.[a-f0-9]+\.(js|css)$" uri)
-        ;; any resource that is named as a cache-busting hex string (e.g. images)
-        (re-matches #"^/app/dist/[a-f0-9]+.*$" uri)
-        ;; font files are static and should be cached
-        (re-matches #"^/app/fonts/.+\.(woff2?|ttf|otf|eot)$" uri))))
+  (let [uri (strip-project-prefix uri)]
+    (and (= request-method :get)
+         (or
+          ;; match requests that are js/css and have a cache-busting hex string
+          (re-matches #"^/app/dist/.+\.[a-f0-9]+\.(js|css)$" uri)
+          ;; any resource that is named as a cache-busting hex string (e.g. images)
+          (re-matches #"^/app/dist/[a-f0-9]+.*$" uri)
+          ;; font files are static and should be cached
+          (re-matches #"^/app/fonts/.+\.(woff2?|ttf|otf|eot)$" uri)))))
 
 (def https?
   "True if the original request made by the frontend client (i.e., browser) was made over HTTPS.

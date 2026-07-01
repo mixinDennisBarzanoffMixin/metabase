@@ -53,6 +53,7 @@
    [metabase.util.malli :as mu]
    [metabase.util.malli.registry :as mr]
    [metabase.util.malli.schema :as ms]
+   [metabase.veritly.projects :as veritly.projects]
    [metabase.xrays.core :as xrays]
    [ring.util.codec :as codec]
    [steffan-westcott.clj-otel.api.trace.span :as span]
@@ -98,7 +99,8 @@
   [_route-params
    {:keys [f]} :- [:map
                    [:f {:optional true} [:maybe [:enum "all" "mine" "archived"]]]]]
-  (let [dashboards (dashboards-list f)
+  (let [_ (veritly.projects/root-collection-id!)
+        dashboards (filter #(veritly.projects/dashboard-in-project? (:id %)) (dashboards-list f))
         edit-infos (:dashboard (revisions/fetch-last-edited-info {:dashboard-ids (map :id dashboards)}))]
     (into []
           (map (fn [{:keys [id] :as dashboard}]
@@ -152,9 +154,8 @@
        [:cache_ttl           {:optional true} [:maybe ms/PositiveInt]]
        [:collection_id       {:optional true} [:maybe ms/PositiveInt]]
        [:collection_position {:optional true} [:maybe ms/PositiveInt]]]]
-  ;; if we're trying to save the new dashboard in a Collection make sure we have permissions to do that
-  (api/create-check :model/Dashboard {:collection_id collection_id})
-  (let [dashboard-data {:name                name
+  (let [collection_id   (veritly.projects/ensure-collection! collection_id)
+        dashboard-data {:name                name
                         :description         description
                         :parameters          (or parameters [])
                         :creator_id          api/*current-user-id*
@@ -642,6 +643,7 @@
   (with-dashboard-load-id dashboard-load-id
     (let [resolved-id (eid-translation/->id-or-404 :dashboard id)
           dashboard (get-dashboard resolved-id)]
+      (veritly.projects/check-dashboard! resolved-id)
       (u/prog1 (first (revisions/with-last-edit-info [dashboard] :dashboard))
         (events/publish-event! :event/dashboard-read {:object-id (:id dashboard) :user-id api/*current-user-id*})))))
 
@@ -1027,7 +1029,11 @@
   (span/with-span!
     {:name       "update-dashboard"
      :attributes {:dashboard/id id}}
-    (let [current-dash                       (api/write-check :model/Dashboard id)
+    (veritly.projects/check-dashboard! id)
+    (let [dash-updates                       (cond-> dash-updates
+                                               (contains? dash-updates :collection_id)
+                                               (update :collection_id veritly.projects/ensure-collection!))
+          current-dash                       (api/write-check :model/Dashboard id)
           ;; If there are parameters in the update, we want the old params so that we can do a check to see if any of
           ;; the notifications were broken by the update.
           {original-params :resolved-params} (when parameters
@@ -1040,7 +1046,8 @@
           ;; tests that exclude it. so this only checks for dashcards
           update-dashcards-and-tabs?         (contains? dash-updates :dashcards)
           dash-updates                       (api/updates-with-archived-directly current-dash dash-updates)]
-      (collection/check-allowed-to-change-collection current-dash dash-updates)
+      (when-not (veritly.projects/project-bound?)
+        (collection/check-allowed-to-change-collection current-dash dash-updates))
       (check-allowed-to-change-embedding current-dash dash-updates)
       (api/check-500
        (do

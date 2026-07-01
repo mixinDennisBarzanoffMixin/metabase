@@ -36,6 +36,7 @@
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
    [metabase.util.malli.schema :as ms]
+   [metabase.veritly.projects :as veritly.projects]
    [ring.util.codec :as codec]
    [steffan-westcott.clj-otel.api.trace.span :as span]
    [toucan2.core :as t2]))
@@ -569,22 +570,21 @@
     ;; Strip :query-permissions/perms first -- it is populated internally by the QP
     ;; middleware, so any value already on the incoming query is dropped here.
     (query-perms/check-run-permissions-for-query (dissoc query :query-permissions/perms))
-    ;; check that we have permissions for the collection we're trying to save this card to, if applicable.
-    ;; if a `dashboard-id` is specified, check permissions on the *dashboard's* collection ID.
-    (api/create-check :model/Card {:collection_id (actual-collection-id card)})
-    (try
-      (lib/check-card-overwrite ::no-id query)
-      (catch clojure.lang.ExceptionInfo e
-        (throw (ex-info (ex-message e) (assoc (ex-data e) :status-code 400)))))
-    (let [created-card (queries/create-card! card @api/*current-user*)]
-      (when (and (some? (:result_metadata card))
-                 (= (name (:type created-card)) "question"))
-        (events/publish-event! :event/card-create-with-result-metadata
-                               {:card-id (:id created-card)
-                                :user-id api/*current-user-id*}))
-      (-> created-card
-          hydrate-card-details
-          (assoc :last-edit-info (revisions/edit-information-for-user @api/*current-user*))))))
+    ;; if a `dashboard-id` is specified, place the card in the dashboard's project collection.
+    (let [card (assoc card :collection_id (veritly.projects/ensure-collection! (actual-collection-id card)))]
+      (try
+        (lib/check-card-overwrite ::no-id query)
+        (catch clojure.lang.ExceptionInfo e
+          (throw (ex-info (ex-message e) (assoc (ex-data e) :status-code 400)))))
+      (let [created-card (queries/create-card! card @api/*current-user*)]
+        (when (and (some? (:result_metadata card))
+                   (= (name (:type created-card)) "question"))
+          (events/publish-event! :event/card-create-with-result-metadata
+                                 {:card-id (:id created-card)
+                                  :user-id api/*current-user-id*}))
+        (-> created-card
+            hydrate-card-details
+            (assoc :last-edit-info (revisions/edit-information-for-user @api/*current-user*)))))))
 
 ;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
 ;; use our API + we will need it when we make auto-TypeScript-signature generation happen
@@ -625,7 +625,8 @@
    card-updates       :- ::queries.schema/card]
   (when (api/column-will-change? :dashboard_id card-before-update card-updates)
     (check-allowed-to-remove-from-existing-dashboards card-before-update))
-  (collection/check-allowed-to-change-collection card-before-update card-updates))
+  (when-not (veritly.projects/project-bound?)
+    (collection/check-allowed-to-change-collection card-before-update card-updates)))
 
 (mu/defn- check-update-result-metadata-data-perms
   [card-before-updates :- ::queries.schema/card
@@ -691,6 +692,9 @@
           card-updates           (maybe-populate-collection-id
                                   card-before-update
                                   (api/updates-with-archived-directly card-before-update card-updates))
+          card-updates           (cond-> card-updates
+                                   (contains? card-updates :collection_id)
+                                   (update :collection_id veritly.projects/ensure-collection!))
           is-model-after-update? (if (nil? card-type)
                                    (queries/model? card-before-update)
                                    (queries/model? card-updates))]

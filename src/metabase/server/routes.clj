@@ -2,6 +2,7 @@
   "Main Compojure routes tables. See https://github.com/weavejester/compojure/wiki/Routes-In-Detail for details about
    how these work. `/api/` routes are in [[metabase.api-routes.routes]]."
   (:require
+   [clojure.string :as str]
    [compojure.core :as compojure :refer #_{:clj-kondo/ignore [:discouraged-var]} [context defroutes GET OPTIONS]]
    [compojure.route :as route]
    [metabase.api.macros :as api.macros]
@@ -18,6 +19,7 @@
    [metabase.util :as u]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
+   [metabase.veritly.project-context :as project]
    [ring.util.response :as response]))
 
 (defn- redirect-including-query-string
@@ -93,6 +95,49 @@
       (respond {:status 503, :body "Metabase is still initializing. Please sit tight..."})
       (api-routes request respond raise))))
 
+(defn- missing-project-response
+  []
+  {:status 400
+   :body   "Veritly Metabase routes require /project/:project-id."})
+
+(defn- unscoped-api-handler
+  [api-routes]
+  (let [handler (api-handler api-routes)]
+    (fn [request respond raise]
+      (if (:veritly-session? request)
+        (respond (missing-project-response))
+        (handler request respond raise)))))
+
+(defn- unscoped-index
+  [request respond raise]
+  (if (:veritly-session? request)
+    (respond (missing-project-response))
+    (index/index request respond raise)))
+
+(defn- project-index
+  [project-id]
+  (fn [request respond raise]
+    (let [root (str "/project/" project-id)]
+      (index/index
+       (cond-> request
+         (str/starts-with? (:uri request) root)
+         (assoc :uri (subs (:uri request) (count root))
+                :veritly-base-href (str root "/")))
+       respond
+       raise))))
+
+(mu/defn- project-routes :- ::api.macros/handler
+  [api-routes :- ::api.macros/handler
+   project-id :- :string]
+  (project/wrap-project
+   (compojure/routes
+    (GET "/favicon.ico" [] (response/resource-response (appearance/application-favicon-url)))
+    (OPTIONS "/api/*" [] {:status 200 :body ""})
+    (context "/api" [] (api-handler api-routes))
+    (context "/app" [] static-files-handler)
+    (GET "*" [] (project-index project-id)))
+   project-id))
+
 (mu/defn make-routes :- ::api.macros/handler
   "Create the top-level Ring route handler for Metabase."
   [api-routes :- ::api.macros/handler]
@@ -102,7 +147,7 @@
    (context "/.well-known" [] oauth-server.api/well-known-routes)
    (context "/oauth" [] oauth-server.api/oauth-routes)
    ;; ^/$ -> index.html
-   (GET "/" [] index/index)
+   (GET "/" [] unscoped-index)
    (GET "/favicon.ico" [] (response/resource-response (appearance/application-favicon-url)))
    ;; ^/api/health -> Health Check Endpoint
    (GET "/api/health" [] health-handler)
@@ -113,8 +158,9 @@
    ;; Handle CORS preflight requests for auth routes
    (OPTIONS "/auth/*" [] {:status 200 :body ""})
    (OPTIONS "/api/*" [] {:status 200 :body ""})
+   (context "/project/:project-id" [project-id] (project-routes api-routes project-id))
    ;; ^/api/ -> All other API routes
-   (context "/api" [] (api-handler api-routes))
+   (context "/api" [] (unscoped-api-handler api-routes))
    ;; ^/app/ -> static files under frontend_client/app
    (context "/app" [] static-files-handler)
    ;; ^/public/ -> Public frontend and download routes
@@ -122,7 +168,7 @@
    ;; ^/emebed/ -> Embed frontend and download routes
    (context "/embed" [] embed-routes)
    ;; Anything else (e.g. /user/edit_current) should serve up index.html; React app will handle the rest
-   (GET "*" [] index/index)))
+   (GET "*" [] unscoped-index)))
 
 ;;; TODO -- if anything changes here we should rebuild these routes? We need a version
 ;;; of [[metabase.server.handler/dev-handler]] for these routes

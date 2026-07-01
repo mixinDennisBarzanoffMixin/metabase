@@ -24,9 +24,12 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- base-href []
-  (let [path (some-> (system/site-url) io/as-url .getPath)]
-    (str path "/")))
+(defn- base-href
+  [request]
+  (if-let [href (:veritly-base-href request)]
+    href
+    (let [path (some-> (system/site-url) io/as-url .getPath)]
+      (str path "/"))))
 
 (defn- escape-script [s]
   ;; Escapes text to be included in an inline <script> tag, in particular the string '</script'
@@ -80,7 +83,7 @@
         (throw (Exception. message e))))))
 
 (defn- template-parameters
-  [embeddable? {:keys [uri params nonce]}]
+  [embeddable? {:keys [uri params nonce] :as opts}]
   (let [{:keys [anon-tracking-enabled google-auth-client-id], :as public-settings} (setting/user-readable-values-map #{:public})
         ;; We disable `locale` parameter on static embeds/public links (metabase#50313)
         should-load-locale-params? (not embeddable?)]
@@ -99,7 +102,7 @@
                                                           custom-favicon)))
      :applicationName        (hiccup.util/escape-html (appearance/application-name))
      :uri                    (hiccup.util/escape-html uri)
-     :baseHref               (hiccup.util/escape-html (base-href))
+     :baseHref               (hiccup.util/escape-html (base-href opts))
      :embedCode              (when embeddable? (embed/head uri))
      :enableGoogleAuth       (boolean google-auth-client-id)
      :enableAnonTracking     (boolean anon-tracking-enabled)}))

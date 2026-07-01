@@ -27,6 +27,7 @@
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
    [metabase.util.quick-task :as quick-task]
+   [metabase.veritly.projects :as veritly.projects]
    [metabase.warehouses.provider-detection :as provider-detection]
    [metabase.warehouses.settings :as warehouses.settings]
    [methodical.core :as methodical]
@@ -104,6 +105,7 @@
    (mi/can-read? :model/Database (u/the-id instance)))
   ([_model database-id]
    (cond
+     (veritly.projects/project-bound?) (veritly.projects/database-in-project? database-id)
      (should-read-audit-db? database-id) false
      (db-id->router-db-id database-id) (mi/can-read? :model/Database (db-id->router-db-id database-id))
      :else (or
@@ -136,6 +138,7 @@
    (mi/can-query? :model/Database (u/the-id instance)))
   ([_model database-id]
    (cond
+     (veritly.projects/project-bound?) (veritly.projects/database-in-project? database-id)
      (should-read-audit-db? database-id) false
      (db-id->router-db-id database-id) (mi/can-query? :model/Database (db-id->router-db-id database-id))
      :else (or
@@ -184,16 +187,22 @@
   ;; Lack of permission to change database details will also exclude the `details` field from the HTTP response,
   ;; cf. the implementation of [[metabase.models.interface/to-json]] for `:model/Database`.
   ([{:keys [is_attached_dwh] :as instance}]
-   (and (can-write? (u/the-id instance))
+   (and (if (veritly.projects/project-bound?)
+          (veritly.projects/database-in-project? (u/the-id instance))
+          (can-write? (u/the-id instance)))
         (not is_attached_dwh)))
   ([_model pk]
-   (and (can-write? pk)
+   (and (if (veritly.projects/project-bound?)
+          (veritly.projects/database-in-project? pk)
+          (can-write? pk))
         (not (:is_attached_dwh (t2/select-one :model/Database :id pk))))))
 
 (mu/defmethod mi/visible-filter-clause :model/Database
   [_model column-or-exp user-info permission-mapping]
-  {:clause [:in column-or-exp
-            (perms/visible-database-filter-select user-info permission-mapping)]})
+  {:clause (if (veritly.projects/project-bound?)
+             (veritly.projects/database-filter-clause column-or-exp)
+             [:in column-or-exp
+              (perms/visible-database-filter-select user-info permission-mapping)])})
 
 (defn- infer-db-schedules
   "Infer database schedule settings based on its options."

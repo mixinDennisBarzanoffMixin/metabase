@@ -321,10 +321,12 @@
       (when-let [workos (workos/authenticate request)]
         (when-let [user (veritly-provider/resolve-user! workos)]
           (when-let [info (some-> (t2/query-one (cons (user-data-for-id-query (premium-features/enable-advanced-permissions?))
-                                                       [(:id user)]))
-                                   (m/update-existing :is-group-manager? boolean)
-                                   (assoc :auth-provider "veritly"
-                                          :veritly-clear-session? true))]
+                                                      [(:id user)]))
+                                  (m/update-existing :is-group-manager? boolean)
+                                  (assoc :auth-provider "veritly"
+                                         :is-superuser? false
+                                         :is-group-manager? false
+                                         :veritly-clear-session? true))]
             (cond-> info
               (:sealed workos) (assoc :veritly-workos-session (:sealed workos))))))
       (catch Exception e

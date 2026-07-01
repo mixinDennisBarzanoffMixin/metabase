@@ -42,6 +42,7 @@
    [metabase.util.malli.schema :as ms]
    [metabase.util.match :as match]
    [metabase.util.quick-task :as quick-task]
+   [metabase.veritly.projects :as veritly.projects]
    [metabase.warehouse-schema.models.field :refer [readable-fields-only]]
    [metabase.warehouse-schema.table :as schema.table]
    [metabase.warehouses.core :as warehouses]
@@ -951,6 +952,8 @@
                                          (sync.schedules/schedule-map->cron-strings schedules))
                                        (when (some? auto_run_queries)
                                          {:auto_run_queries auto_run_queries})))))
+        (when (veritly.projects/project-bound?)
+          (veritly.projects/bind-database! (u/the-id <>)))
         (events/publish-event! :event/database-create {:object <> :user-id api/*current-user-id*})
         (analytics/track-event! :snowplow/database
                                 {:event        :database-connection-successful

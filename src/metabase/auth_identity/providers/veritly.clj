@@ -41,7 +41,7 @@
   (t2/with-transaction [_]
     (let [user (t2/insert-returning-instance! (fields)
                                               (assoc (select-keys data [:email :first_name :last_name])
-                                                     :is_superuser true))]
+                                                     :is_superuser false))]
       (t2/delete! :model/AuthIdentity :user_id (:id user) :provider "password")
       (t2/insert! :model/AuthIdentity {:user_id (:id user)
                                        :provider (name provider)

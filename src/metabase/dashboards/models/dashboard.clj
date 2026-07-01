@@ -30,6 +30,7 @@
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
    [metabase.util.malli.schema :as ms]
+   [metabase.veritly.projects :as veritly.projects]
    [methodical.core :as methodical]
    [toucan2.core :as t2]))
 
@@ -48,17 +49,27 @@
 (defmethod mi/can-write? :model/Dashboard
   ([instance]
    ;; Dashboards in audit collection should be read only
-   (and (not (and
-              ;; We want to make sure there's an existing audit collection before doing the equality check below.
-              ;; If there is no audit collection, this will be nil:
-              (some? (:id (audit/default-audit-collection)))
-              ;; Is a direct descendant of audit collection
-              (= (:collection_id instance) (:id (audit/default-audit-collection)))))
-        (mi/current-user-has-full-permissions? (mi/perms-objects-set instance :write))))
+   (if (veritly.projects/project-bound?)
+     (veritly.projects/dashboard-in-project? (:id instance))
+     (and (not (and
+                ;; We want to make sure there's an existing audit collection before doing the equality check below.
+                ;; If there is no audit collection, this will be nil:
+                (some? (:id (audit/default-audit-collection)))
+                ;; Is a direct descendant of audit collection
+                (= (:collection_id instance) (:id (audit/default-audit-collection)))))
+          (mi/current-user-has-full-permissions? (mi/perms-objects-set instance :write)))))
   ([_ pk]
    (mi/can-write? (t2/select-one :model/Dashboard :id pk))))
 
 (perms/define-collection-based-visibility! :model/Dashboard)
+
+(defmethod mi/can-read? :model/Dashboard
+  ([instance]
+   (if (veritly.projects/project-bound?)
+     (veritly.projects/dashboard-in-project? (:id instance))
+     (perms/can-read-via-parent-collection? (:collection_id instance))))
+  ([_ pk]
+   (mi/can-read? (t2/select-one :model/Dashboard :id pk))))
 
 (defmethod mi/non-timestamped-fields :model/Dashboard [_]
   #{:last_viewed_at})
