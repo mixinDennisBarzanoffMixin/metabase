@@ -1,6 +1,7 @@
 (ns metabase.veritly.projects
   "Project-scoped Metabase content helpers."
   (:require
+   [clojure.string :as str]
    [metabase.veritly.project-context :as context]
    [toucan2.core :as t2]))
 
@@ -75,6 +76,16 @@
                 :project_id project-id
                 :database_id database-id)))
 
+(defn table-in-project?
+  [table-id]
+  (when-let [project-id (context/current-project-id)]
+    (t2/exists? :model/Table
+                {:where [:and
+                         [:= :id table-id]
+                         [:in :db_id {:select [:database_id]
+                                      :from   [:veritly_project_database]
+                                      :where  [:= :project_id project-id]}]]})))
+
 (defn bind-database!
   [database-id]
   (let [project-id (context/require-project-id)]
@@ -90,3 +101,76 @@
     [:in column {:select [:database_id]
                  :from   [:veritly_project_database]
                  :where  [:= :project_id project-id]}]))
+
+(defn table-filter-clause
+  [column]
+  (let [project-id (context/require-project-id)]
+    [:in column {:select [:id]
+                 :from   [:metabase_table]
+                 :where  [:in :db_id {:select [:database_id]
+                                       :from   [:veritly_project_database]
+                                       :where  [:= :project_id project-id]}]}]))
+
+(defn collection-filter-clause
+  [id-column location-column]
+  (let [root-id (root-collection-id!)]
+    [:or
+     [:= id-column root-id]
+     [:like location-column (str "/" root-id "/%")]]))
+
+(defn- collection-ids
+  [root-id]
+  (conj (t2/select-fn-set :id :model/Collection
+                          {:where [:like :location (str "/" root-id "/%")]})
+        root-id))
+
+(defn- clean-name
+  [name fallback]
+  (let [value (str/trim (str (or name "")))]
+    (str/replace (if (seq value) value fallback) #"[\\/]+" "-")))
+
+(defn- file-row
+  [kind id name ext]
+  (let [title (clean-name name (str kind " " id))
+        path  (str title ext)]
+    {:kind kind
+     :id   (str id)
+     :name title
+     :path path}))
+
+(defn files
+  []
+  (let [project-id (context/require-project-id)
+        ids        (collection-ids (root-collection-id!))
+        dash       (t2/select :model/Dashboard
+                              {:where [:and
+                                       [:= :archived false]
+                                       [:in :collection_id ids]]})
+        dash-ids   (set (map :id dash))
+        card-ids   (when (seq dash-ids)
+                     (t2/select-fn-set :card_id :model/DashboardCard
+                                       {:where [:and
+                                                [:in :dashboard_id dash-ids]
+                                                [:not= :card_id nil]]}))
+        card-where (if (seq card-ids)
+                     [:and
+                      [:= :archived false]
+                      [:or
+                       [:in :collection_id ids]
+                       [:in :id card-ids]]]
+                     [:and
+                      [:= :archived false]
+                      [:in :collection_id ids]])
+        cards      (t2/select :model/Card {:where card-where})
+        dashboards (for [dashboard dash]
+                     (assoc (file-row "dashboard" (:id dashboard) (:name dashboard) ".dash")
+                            :dashboardId (str (:id dashboard))))
+        cards      (for [card cards]
+                     (assoc (file-row "question" (:id card) (:name card) ".question")
+                            :cardId (str (:id card))))
+        databases  (for [row (t2/select :veritly_project_database :project_id project-id)
+                         :let [database (t2/select-one :model/Database :id (:database_id row))]
+                         :when database]
+                     (assoc (file-row "source" (:id database) (:name database) ".source")
+                            :databaseId (str (:id database))))]
+    {:files (vec (concat databases cards dashboards))}))

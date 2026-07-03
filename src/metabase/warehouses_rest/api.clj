@@ -71,6 +71,19 @@
   (when-not (veritly.projects/project-bound?)
     (api/check-superuser)))
 
+(defn- sync-project-database!
+  [database]
+  (when (veritly.projects/project-bound?)
+    (quick-task/submit-task!
+     (fn []
+       (try
+         (database-routing/with-database-routing-off
+           (sync/sync-db-metadata-explicit! database)
+           (when (:is_full_sync database)
+             (sync/analyze-db-explicit! database)))
+         (catch Throwable e
+           (log/errorf e "Error syncing Veritly project Database %s" (u/the-id database))))))))
+
 ;;; ----------------------------------------------- GET /api/database ------------------------------------------------
 
 (defn- add-tables
@@ -958,7 +971,9 @@
                                        (when (some? auto_run_queries)
                                          {:auto_run_queries auto_run_queries})))))
         (when (veritly.projects/project-bound?)
-          (veritly.projects/bind-database! (u/the-id <>)))
+          (veritly.projects/bind-database! (u/the-id <>))
+          (when (warehouses/disable-auto-sync)
+            (sync-project-database! <>)))
         (events/publish-event! :event/database-create {:object <> :user-id api/*current-user-id*})
         (analytics/track-event! :snowplow/database
                                 {:event        :database-connection-successful
@@ -1231,6 +1246,7 @@
                                                          :user-id          api/*current-user-id*
                                                          :previous-object  existing-database
                                                          :details-changed? details-changed?})
+          (sync-project-database! db)
           (-> db
               ;; return the DB with the expanded schedules back in place
               add-expanded-schedules

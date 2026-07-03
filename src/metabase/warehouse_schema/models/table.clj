@@ -15,6 +15,7 @@
    [metabase.util :as u]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
+   [metabase.veritly.projects :as veritly.projects]
    [methodical.core :as methodical]
    [toucan2.core :as t2]))
 
@@ -293,30 +294,32 @@
   ;; - Data access permissions (view-data :unrestricted) and either query perms or published-collection access, OR
   ;; - Metadata management permission (manage-table-metadata :yes), OR
   ([instance]
-   (or
-    ;; Has data access permissions
-    (and (perms/user-has-permission-for-table?
-          api/*current-user-id*
-          :perms/view-data
-          :unrestricted
-          (:db_id instance)
-          (:id instance))
-         (or
-          (perms/user-has-permission-for-table?
-           api/*current-user-id*
-           :perms/create-queries
-           :query-builder
-           (:db_id instance)
-           (:id instance))
-          ;; Can access via published collection (EE feature)
-          (perms/can-access-via-collection? instance)))
-    ;; Has manage-table-metadata permission (allows viewing metadata without data access)
-    (perms/user-has-permission-for-table?
-     api/*current-user-id*
-     :perms/manage-table-metadata
-     :yes
-     (:db_id instance)
-     (:id instance))))
+   (if (veritly.projects/project-bound?)
+     (veritly.projects/database-in-project? (:db_id instance))
+     (or
+      ;; Has data access permissions
+      (and (perms/user-has-permission-for-table?
+            api/*current-user-id*
+            :perms/view-data
+            :unrestricted
+            (:db_id instance)
+            (:id instance))
+           (or
+            (perms/user-has-permission-for-table?
+             api/*current-user-id*
+             :perms/create-queries
+             :query-builder
+             (:db_id instance)
+             (:id instance))
+            ;; Can access via published collection (EE feature)
+            (perms/can-access-via-collection? instance)))
+      ;; Has manage-table-metadata permission (allows viewing metadata without data access)
+      (perms/user-has-permission-for-table?
+       api/*current-user-id*
+       :perms/manage-table-metadata
+       :yes
+       (:db_id instance)
+       (:id instance)))))
   ([_ pk]
    (mi/can-read? (t2/select-one :model/Table pk))))
 
@@ -326,22 +329,24 @@
   ;; - view-data permission and either create-queries permission or published-collection access (EE feature)
   ([instance]
    (boolean
-    ;; Has both view-data and create-queries permissions
-    (and (perms/user-has-permission-for-table?
-          api/*current-user-id*
-          :perms/view-data
-          :unrestricted
-          (:db_id instance)
-          (:id instance))
-         (or
-          (perms/user-has-permission-for-table?
-           api/*current-user-id*
-           :perms/create-queries
-           :query-builder
-           (:db_id instance)
-           (:id instance))
-          ;; Can access via published collection (EE feature)
-          (perms/can-access-via-collection? instance)))))
+    (if (veritly.projects/project-bound?)
+      (veritly.projects/database-in-project? (:db_id instance))
+      ;; Has both view-data and create-queries permissions
+      (and (perms/user-has-permission-for-table?
+            api/*current-user-id*
+            :perms/view-data
+            :unrestricted
+            (:db_id instance)
+            (:id instance))
+           (or
+            (perms/user-has-permission-for-table?
+             api/*current-user-id*
+             :perms/create-queries
+             :query-builder
+             (:db_id instance)
+             (:id instance))
+            ;; Can access via published collection (EE feature)
+            (perms/can-access-via-collection? instance))))))
   ([_ pk]
    (mi/can-query? (t2/select-one :model/Table pk))))
 
@@ -415,11 +420,13 @@
    user-info          :- perms/UserInfo
    permission-mapping :- perms/PermissionMapping
    & [{:keys [include-published-via-collection? active-only?]}]]
-  (perms/visible-table-filter-with-cte
-   column-or-exp user-info permission-mapping
-   (cond-> {}
-     (some? active-only?) (assoc :active-only? active-only?)
-     include-published-via-collection? (assoc :include-published-via-collection? true))))
+  (if (veritly.projects/project-bound?)
+    {:clause (veritly.projects/table-filter-clause column-or-exp)}
+    (perms/visible-table-filter-with-cte
+     column-or-exp user-info permission-mapping
+     (cond-> {}
+       (some? active-only?) (assoc :active-only? active-only?)
+       include-published-via-collection? (assoc :include-published-via-collection? true)))))
 
 ;;; ------------------------------------------------ Serdes Hashing -------------------------------------------------
 

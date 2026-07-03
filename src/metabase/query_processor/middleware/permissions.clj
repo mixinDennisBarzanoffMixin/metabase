@@ -14,7 +14,8 @@
    ^{:clj-kondo/ignore [:deprecated-namespace]} [metabase.query-processor.store :as qp.store]
    [metabase.util.i18n :refer [tru]]
    [metabase.util.log :as log]
-   [metabase.util.malli :as mu]))
+   [metabase.util.malli :as mu]
+   [metabase.veritly.projects :as veritly.projects]))
 
 (def ^:dynamic *card-id*
   "ID of the Card currently being executed, if there is one. Bind this in a Card-execution so we will use
@@ -195,6 +196,8 @@
   [{database-id :database, :as _query}]
   (or
    (not *current-user-id*)
+   (and (veritly.projects/project-bound?)
+        (veritly.projects/database-in-project? database-id))
    (= (perms/full-db-permission-for-user *current-user-id* :perms/create-queries database-id)
       :query-builder-and-native)))
 

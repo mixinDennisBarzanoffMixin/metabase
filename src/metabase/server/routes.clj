@@ -3,9 +3,10 @@
    how these work. `/api/` routes are in [[metabase.api-routes.routes]]."
   (:require
    [clojure.string :as str]
-   [compojure.core :as compojure :refer #_{:clj-kondo/ignore [:discouraged-var]} [context defroutes GET OPTIONS]]
+   [compojure.core :as compojure :refer #_{:clj-kondo/ignore [:discouraged-var]} [context defroutes GET OPTIONS POST]]
    [compojure.route :as route]
    [metabase.api.macros :as api.macros]
+   [metabase.api.common :as api]
    [metabase.app-db.core :as mdb]
    [metabase.appearance.core :as appearance]
    [metabase.initialization-status.core :as init-status]
@@ -19,7 +20,9 @@
    [metabase.util :as u]
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
+   [metabase.veritly.files :as veritly.files]
    [metabase.veritly.project-context :as project]
+   [metabase.veritly.projects :as veritly.projects]
    [ring.util.response :as response]))
 
 (defn- redirect-including-query-string
@@ -133,6 +136,12 @@
    (compojure/routes
     (GET "/favicon.ico" [] (response/resource-response (appearance/application-favicon-url)))
     (OPTIONS "/api/*" [] {:status 200 :body ""})
+    (GET "/api/veritly/files" []
+      (api/check-403 api/*current-user-id*)
+      {:status 200 :body (veritly.projects/files)})
+    (POST "/api/veritly/question" request
+      (api/check-403 api/*current-user-id*)
+      {:status 200 :body (veritly.files/create-question! (get-in request [:body :name]))})
     (context "/api" [] (api-handler api-routes))
     (context "/app" [] static-files-handler)
     (GET "*" [] (project-index project-id)))

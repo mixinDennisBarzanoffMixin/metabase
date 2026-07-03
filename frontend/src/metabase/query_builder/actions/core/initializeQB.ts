@@ -33,7 +33,11 @@ import Question from "metabase-lib/v1/Question";
 import type Metadata from "metabase-lib/v1/metadata/Metadata";
 import type NativeQuery from "metabase-lib/v1/queries/NativeQuery";
 import { updateCardTemplateTagNames } from "metabase-lib/v1/queries/NativeQuery";
-import type { Card, SegmentId } from "metabase-types/api";
+import type {
+  Card,
+  ListDatabasesResponse,
+  SegmentId,
+} from "metabase-types/api";
 import type { EntityToken } from "metabase-types/api/entity";
 import { isSavedCard } from "metabase-types/guards";
 
@@ -51,6 +55,11 @@ type BlankQueryOptions = {
   db?: string;
   table?: string;
   segment?: string;
+};
+
+type VeritlyStart = BlankQueryOptions & {
+  databaseId: number;
+  tableId: number;
 };
 
 export type QueryParams = BlankQueryOptions & {
@@ -114,6 +123,44 @@ function getCardForBlankNativeQuestion(
   });
 
   return question.card();
+}
+
+function firstTable(data: ListDatabasesResponse): VeritlyStart | undefined {
+  const db = data.data.find((item) => {
+    if (!Array.isArray(item.tables)) {return false;}
+    return item.tables.some((table) => typeof table.id === "number");
+  });
+  if (!db || !Array.isArray(db.tables)) {return;}
+
+  const table = db.tables.find((item) => typeof item.id === "number");
+  if (!table || typeof table.id !== "number") {return;}
+
+  return {
+    db: String(db.id),
+    table: String(table.id),
+    databaseId: db.id,
+    tableId: table.id,
+  };
+}
+
+function veritlyBlank(
+  location: LocationDescriptorObject,
+  options: BlankQueryOptions,
+  hasCard: boolean,
+) {
+  if (hasCard || options.db || options.table || options.segment) {return false;}
+  if (!location.pathname) {return false;}
+  return location.pathname.includes("/veritly/question/notebook");
+}
+
+async function veritlyStart(dispatch: Dispatch) {
+  const data: ListDatabasesResponse = await runRtkEndpoint(
+    { include: "tables" },
+    dispatch,
+    databaseApi.endpoints.listDatabases,
+    { forceRefetch: false },
+  );
+  return firstTable(data);
 }
 
 function filterBySegmentId(question: Question, segmentId: SegmentId) {
@@ -334,6 +381,28 @@ async function handleQBInit(
   }
 
   const hasCard = cardId || serializedCard;
+
+  if (veritlyBlank(location, options, Boolean(hasCard))) {
+    const next = await veritlyStart(dispatch);
+    if (isStale()) {
+      return;
+    }
+    if (next) {
+      await dispatch(fetchTableMetadataAndForeignKeys({ id: next.tableId }));
+      if (isStale()) {
+        return;
+      }
+      await dispatch(fetchDatabaseMetadata(next.databaseId));
+      if (isStale()) {
+        return;
+      }
+      options = {
+        ...options,
+        db: next.db,
+        table: next.table,
+      };
+    }
+  }
 
   if (uiControls.queryBuilderMode === "notebook") {
     if (!canUserCreateQueries(getState())) {

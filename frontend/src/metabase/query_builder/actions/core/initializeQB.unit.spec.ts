@@ -10,6 +10,7 @@ import { setErrorPage } from "metabase/redux/app";
 import * as metadataActions from "metabase/redux/metadata";
 import * as sharedQB from "metabase/redux/query-builder";
 import { createMockState } from "metabase/redux/store/mocks";
+import * as tableActions from "metabase/redux/tables";
 import { getMetadata } from "metabase/selectors/metadata";
 import * as Urls from "metabase/urls";
 import { defer } from "metabase/utils/promise";
@@ -836,9 +837,16 @@ describe("QB Actions > initializeQB", () => {
       db?: DatabaseId;
       table?: TableId;
       segment?: number;
+      path?: string;
     };
 
-    function setupBlank({ db, table, segment, ...opts }: BlankSetupOpts = {}) {
+    function setupBlank({
+      db,
+      table,
+      segment,
+      path = "/question",
+      ...opts
+    }: BlankSetupOpts = {}) {
       const hashParams = [
         db ? `db=${db}` : "",
         table ? `table=${table}` : "",
@@ -851,7 +859,7 @@ describe("QB Actions > initializeQB", () => {
       }
 
       const location: LocationDescriptorObject = {
-        pathname: "/question",
+        pathname: path,
         hash,
       };
 
@@ -914,6 +922,44 @@ describe("QB Actions > initializeQB", () => {
         Lib.areLegacyQueriesEqual(
           result.card.dataset_query,
           expectedCard.dataset_query,
+        ),
+      ).toBe(true);
+      expect(result.originalCard).toBeUndefined();
+    });
+
+    it("starts Veritly notebook drafts from the first project source table", async () => {
+      const data = {
+        data: [createSampleDatabase()],
+        total: 1,
+      };
+      const run = jest
+        .spyOn(rtkEndpointUtils, "runRtkEndpoint")
+        .mockResolvedValue(data);
+      const tableSpy = jest.spyOn(
+        tableActions,
+        "fetchTableMetadataAndForeignKeys",
+      );
+      const dbSpy = jest.spyOn(metadataActions, "fetchDatabaseMetadata");
+
+      const { result, metadata } = await setupBlank({
+        path: "/project/project-id/veritly/question/notebook",
+      });
+      const expected = checkNotNull(
+        metadata.table(ORDERS_ID)?.question().card(),
+      );
+
+      expect(run).toHaveBeenCalledWith(
+        { include: "tables" },
+        expect.any(Function),
+        databaseApi.endpoints.listDatabases,
+        { forceRefetch: false },
+      );
+      expect(tableSpy).toHaveBeenCalledWith({ id: ORDERS_ID });
+      expect(dbSpy).toHaveBeenCalledWith(SAMPLE_DB_ID);
+      expect(
+        Lib.areLegacyQueriesEqual(
+          result.card.dataset_query,
+          expected.dataset_query,
         ),
       ).toBe(true);
       expect(result.originalCard).toBeUndefined();

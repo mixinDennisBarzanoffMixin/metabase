@@ -38,6 +38,7 @@
    [metabase.util.malli :as mu]
    [metabase.util.malli.registry :as mr]
    [metabase.util.malli.schema :as ms]
+   [metabase.veritly.projects :as veritly.projects]
    [toucan2.core :as t2]))
 
 (set! *warn-on-reflection* true)
@@ -46,6 +47,18 @@
 (comment collection.root/keep-me)
 
 (declare root-collection)
+
+(defn- project-collection-filter-clause
+  [id-column location-column]
+  (let [root-id (veritly.projects/root-collection-id!)]
+    [:or
+     [:= id-column root-id]
+     [:like location-column (str "/" root-id "/%")]]))
+
+(defn- check-project-collection!
+  [id]
+  (when (veritly.projects/project-bound?)
+    (api/check-404 (veritly.projects/owned-collection-id? id))))
 
 (defn- location-from-collection-id-clause
   "Clause to restrict which collections are being selected based off collection-id. If collection-id is nil,
@@ -103,6 +116,8 @@
                          [:!= :personal_owner_id nil])
                        (when exclude-other-user-collections
                          [:or [:= :personal_owner_id nil] [:= :personal_owner_id api/*current-user-id*]])
+                       (when (veritly.projects/project-bound?)
+                         (project-collection-filter-clause :id :location))
                        (when-not include-library?
                          [:or [:= nil :type]
                           [:not-in :type [collection/library-collection-type
@@ -170,6 +185,7 @@
         (cond->> collections
           (mi/can-read? root)
           (cons root))))
+    (m/distinct-by :id collections)
     (t2/hydrate collections :can_write :is_personal :can_delete :is_remote_synced :parent_id)
     ;; remove the :metabase.collection.models.collection.root/is-root? tag since FE doesn't need it
     ;; and for personal/tenant collections we translate the name to user's locale
@@ -1288,8 +1304,14 @@
 
 ;;; -------------------------------------------- GET /api/collection/root --------------------------------------------
 
+(defn- root-collection-row
+  [collection-namespace]
+  (if (veritly.projects/project-bound?)
+    (t2/select-one :model/Collection :id (veritly.projects/root-collection-id!))
+    (collection/root-collection-with-ui-details collection-namespace)))
+
 (defn- root-collection [collection-namespace]
-  (collection-detail (collection/root-collection-with-ui-details collection-namespace)))
+  (collection-detail (root-collection-row collection-namespace)))
 
 ;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
 ;; use our API + we will need it when we make auto-TypeScript-signature generation happen
@@ -1369,7 +1391,7 @@
                                           [:show_dashboard_questions    {:optional true} [:maybe ms/MaybeBooleanValue]]]]
   ;; Return collection contents, including Collections that have an effective location of being in the Root
   ;; Collection for the Current User.
-  (let [root-collection (assoc collection/root-collection :namespace namespace)
+  (let [root-collection (root-collection-row namespace)
         model-set       (set (map keyword (u/one-or-many models)))
         model-kwds      (visible-model-kwds root-collection model-set)]
     (collection-children
@@ -1567,6 +1589,7 @@
   [{:keys [id]} :- [:map
                     [:id [:or ms/PositiveInt ms/NanoIdString]]]]
   (let [resolved-id (eid-translation/->id-or-404 :collection id)]
+    (check-project-collection! resolved-id)
     (collection-detail (api/read-check :model/Collection resolved-id))))
 
 ;; TODO (Cam 2025-11-25) please add a response schema to this API endpoint, it makes it easier for our customers to
@@ -1587,6 +1610,7 @@
                                                                   [:authority_level  {:optional true} [:maybe collection/AuthorityLevel]]]]
   ;; do we have perms to edit this Collection?
   (let [collection-before-update (t2/hydrate (api/write-check :model/Collection id) :parent_id)]
+    (check-project-collection! id)
     ;; tenant-specific-root-collection collections cannot be updated
     (api/check-400
      (not= (:type collection-before-update) collection/tenant-specific-root-collection-type))
@@ -1672,6 +1696,7 @@
   (let [resolved-id (eid-translation/->id-or-404 :collection id)
         model-kwds (set (map keyword (u/one-or-many models)))
         collection (api/read-check :model/Collection resolved-id)]
+    (check-project-collection! resolved-id)
     (u/prog1 (collection-children collection
                                   {:show-dashboard-questions?   show_dashboard_questions
                                    :models                      model-kwds
