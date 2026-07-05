@@ -2,6 +2,7 @@
   (:require
    [clojure.string :as str]
    [clojure.test :refer :all]
+   [metabase.test :as mt]
    [metabase.test.http-client :as client]))
 
 (deftest test-public-routes
@@ -25,3 +26,21 @@
                             :headers
                             (get "Location"))
                         "/api/embed/card/token-string/query/csv?"))))
+
+(deftest api-readyz-test
+  (binding [client/*url-prefix* ""]
+    (let [res (client/client :get 200 "api/readyz")]
+      (is (=? {:service "metabase"
+               :ok      true
+               :checks  [{:name   "initialization"
+                          :ok     true
+                          :detail "complete"}
+                         {:name   "database"
+                          :ok     true
+                          :detail "app-db reachable"}]}
+              res))
+      (is (every? #(integer? (:latencyMs %)) (:checks res)))))
+  (testing "does not require a Veritly project scope"
+    (binding [client/*url-prefix* ""]
+      (mt/with-current-user nil
+        (is (= true (:ok (client/client :get 200 "api/readyz"))))))))

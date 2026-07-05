@@ -12,7 +12,7 @@
 
 (def no-redirect-https-uris
   "The set of URLs that should not be forced to redirect to their HTTPS equivalents"
-  #{"/api/health" "/livez" "/readyz"})
+  #{"/api/health" "/api/readyz" "/livez" "/readyz"})
 
 (defn- get-request? [{method :request-method}]
   (or (= method :head)

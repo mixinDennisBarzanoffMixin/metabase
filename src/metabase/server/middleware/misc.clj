@@ -76,7 +76,7 @@
   (let [{:strs [origin x-forwarded-host host user-agent]} headers]
     (when (and (mdb/db-is-set-up?)
                (not (system/site-url))
-               (not (#{"/api/health" "/livez" "/readyz"} uri))
+               (not (#{"/api/health" "/api/readyz" "/livez" "/readyz"} uri))
                (or (nil? user-agent) ((complement str/includes?) user-agent "HealthChecker")))
       ;; `origin` already carries a scheme; the `*-host` headers normally don't, so prepend the scheme the proxy
       ;; terminated TLS with -- otherwise `normalize-site-url` defaults to `http://` and a TLS-terminating proxy ends

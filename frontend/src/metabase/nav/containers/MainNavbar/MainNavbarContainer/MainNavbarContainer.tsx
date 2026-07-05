@@ -120,6 +120,10 @@ function MainNavbarContainer({
     const displayableCollections = collections.filter((collection) =>
       nonPersonalOrArchivedCollection(collection),
     );
+    const rootId = rootCollection?.id;
+    const treeHasRoot = displayableCollections.some(
+      (collection) => collection.id === rootId,
+    );
 
     preparedCollections.push(...userPersonalCollections);
     preparedCollections.push(...displayableCollections);
@@ -135,7 +139,7 @@ function MainNavbarContainer({
       tree.push(trash);
     }
 
-    if (rootCollection) {
+    if (rootCollection && !treeHasRoot) {
       const root: CollectionTreeItem = {
         ...rootCollection,
         icon: getCollectionIcon(rootCollection, { isTenantUser }),

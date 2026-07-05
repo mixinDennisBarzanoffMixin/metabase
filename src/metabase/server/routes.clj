@@ -67,6 +67,57 @@
   ([_request respond _raise]
    (respond (health-handler))))
 
+(defn- elapsed
+  [start]
+  (long (/ (- (System/nanoTime) start) 1000000)))
+
+(defn- init-check
+  []
+  (let [start (System/nanoTime)
+        ok    (init-status/complete?)]
+    (cond-> {:name      "initialization"
+             :ok        ok
+             :detail    (if ok "complete" "initializing")
+             :latencyMs (elapsed start)}
+      (not ok) (assoc :progress (init-status/progress)))))
+
+(defn- app-db-check
+  []
+  (let [start (System/nanoTime)]
+    (try
+      (if-not (init-status/complete?)
+        {:name      "database"
+         :ok        false
+         :detail    "skipped until initialization completes"
+         :latencyMs (elapsed start)}
+        (if (or (mdb/recent-activity?)
+                (mdb/can-connect-to-data-source? (mdb/data-source)))
+          {:name      "database"
+           :ok        true
+           :detail    "app-db reachable"
+           :latencyMs (elapsed start)}
+          {:name      "database"
+           :ok        false
+           :detail    "unable to get app-db connection"
+           :latencyMs (elapsed start)}))
+      (catch Exception e
+        (log/warn e "Error in api/readyz database check")
+        {:name      "database"
+         :ok        false
+         :detail    "error getting app-db connection"
+         :latencyMs (elapsed start)}))))
+
+(defn- readyz-handler
+  ([]
+   (let [checks [(init-check) (app-db-check)]
+         ok     (every? :ok checks)]
+     {:status (if ok 200 503)
+      :body   {:service "metabase"
+               :ok      ok
+               :checks  checks}}))
+  ([_request respond _raise]
+   (respond (readyz-handler))))
+
 (defn- livez-handler
   "Simple liveness probe that does not perform any database checks. Always returns 200 with the
   same body format as `/api/health` when healthy."
@@ -160,8 +211,10 @@
    (GET "/favicon.ico" [] (response/resource-response (appearance/application-favicon-url)))
    ;; ^/api/health -> Health Check Endpoint
    (GET "/api/health" [] health-handler)
-   ;; ^/readyz -> Readiness probe (same implementation as /api/health)
-   (GET "/readyz" [] health-handler)
+   ;; ^/api/readyz -> Veritly readiness probe with detailed internal checks
+   (GET "/api/readyz" [] readyz-handler)
+   ;; ^/readyz -> Veritly readiness probe with detailed internal checks
+   (GET "/readyz" [] readyz-handler)
    ;; ^/livez -> Liveness probe (no DB access)
    (GET "/livez" [] livez-handler)
    ;; Handle CORS preflight requests for auth routes

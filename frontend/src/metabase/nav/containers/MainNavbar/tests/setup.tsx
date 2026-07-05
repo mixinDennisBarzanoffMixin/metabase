@@ -29,6 +29,7 @@ import {
 import * as iframeUtils from "metabase/utils/iframe";
 import type {
   Card,
+  Collection,
   Dashboard,
   DashboardId,
   ModelResult,
@@ -62,6 +63,8 @@ export type SetupOpts = {
   hasEmbeddingFeature?: boolean;
   applicationName?: string;
   activeUsersCount?: number;
+  collections?: Collection[];
+  rootCollection?: Collection;
 };
 
 export const PERSONAL_COLLECTION_BASE = createMockCollection({
@@ -102,6 +105,8 @@ export async function setup({
   hasWhitelabelToken,
   hasEmbeddingFeature,
   applicationName = "Metabase",
+  collections: input,
+  rootCollection: root,
 }: SetupOpts = {}) {
   if (isEmbeddingIframe) {
     jest.spyOn(iframeUtils, "isWithinIframe").mockReturnValue(true);
@@ -129,12 +134,14 @@ export async function setup({
       databases.push(USER_DATABASE);
     }
   }
-  const OUR_ANALYTICS = createMockCollection({
-    ...ROOT_COLLECTION,
-    can_write: user?.is_superuser || canCurateRootCollection,
-  });
+  const OUR_ANALYTICS = root
+    ? root
+    : createMockCollection({
+        ...ROOT_COLLECTION,
+        can_write: user?.is_superuser || canCurateRootCollection,
+      });
 
-  const collections = [TEST_COLLECTION];
+  const collections = input ? [...input] : [TEST_COLLECTION];
 
   const personalCollection = user
     ? createMockCollection({

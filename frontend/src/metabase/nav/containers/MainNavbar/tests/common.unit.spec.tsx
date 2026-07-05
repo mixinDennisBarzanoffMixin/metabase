@@ -6,6 +6,7 @@ import { ROOT_COLLECTION } from "metabase/common/collections/constants";
 import * as Urls from "metabase/urls";
 import {
   createMockCard,
+  createMockCollection,
   createMockDashboard,
   createMockModelResult,
   createMockUser,
@@ -213,6 +214,28 @@ describe("nav > containers > MainNavbar", () => {
         "href",
         Urls.collection(TEST_COLLECTION),
       );
+    });
+
+    it("should not duplicate root when the collection tree includes it", async () => {
+      const root = createMockCollection({
+        id: 9,
+        name: "Veritly project",
+        children: [TEST_COLLECTION],
+      });
+
+      await setup({
+        rootCollection: root,
+        collections: [root],
+        pathname: Urls.collection(root),
+        route: "/collection/:slug",
+      });
+
+      expect(
+        screen.getAllByRole("treeitem", { name: /Veritly project/i }),
+      ).toHaveLength(1);
+      expect(
+        screen.getByRole("treeitem", { name: /Test collection/i }),
+      ).toBeInTheDocument();
     });
 
     it("should not highlight collections when not selected", async () => {

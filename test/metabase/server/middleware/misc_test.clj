@@ -35,7 +35,7 @@
                  (system/site-url)))))))
   (testing "Site URL should not be inferred from healthcheck requests"
     (mt/with-temporary-setting-values [site-url nil]
-      (doseq [uri ["/api/health" "/livez" "/readyz"]]
+      (doseq [uri ["/api/health" "/api/readyz" "/livez" "/readyz"]]
         (let [request (mock-request uri "https://mb1.example.com" nil nil)]
           (maybe-set-site-url request)
           (is (nil? (system/site-url)))))))
