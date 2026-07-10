@@ -1,0 +1,44 @@
+diff --git a/node_modules/react-grid-layout/build/GridItem.js b/node_modules/react-grid-layout/build/GridItem.js
+index ccae2ed..11a06c6 100644
+--- a/node_modules/react-grid-layout/build/GridItem.js
++++ b/node_modules/react-grid-layout/build/GridItem.js
+@@ -398,6 +398,7 @@ class GridItem extends _react.default.Component /*:: <Props, State>*/{
+   mixinDraggable(child /*: ReactElement<any>*/, isDraggable /*: boolean*/) /*: ReactElement<any>*/{
+     return /*#__PURE__*/_react.default.createElement(_reactDraggable.DraggableCore, {
+       disabled: !isDraggable,
++      enableUserSelectHack: false,
+       onStart: this.onDragStart,
+       onDrag: this.onDrag,
+       onStop: this.onDragStop,
+@@ -449,7 +450,8 @@ class GridItem extends _react.default.Component /*:: <Props, State>*/{
+     // These are opts for the resize handle itself
+     , {
+       draggableOpts: {
+-        disabled: !isResizable
++        disabled: !isResizable,
++        enableUserSelectHack: false
+       },
+       className: isResizable ? undefined : "react-resizable-hide",
+       width: position.width,
+diff --git a/node_modules/react-grid-layout/lib/GridItem.jsx b/node_modules/react-grid-layout/lib/GridItem.jsx
+index d2f6ce4..bf46fd5 100644
+--- a/node_modules/react-grid-layout/lib/GridItem.jsx
++++ b/node_modules/react-grid-layout/lib/GridItem.jsx
+@@ -359,6 +359,7 @@ export default class GridItem extends React.Component<Props, State> {
+     return (
+       <DraggableCore
+         disabled={!isDraggable}
++        enableUserSelectHack={false}
+         onStart={this.onDragStart}
+         onDrag={this.onDrag}
+         onStop={this.onDragStop}
+@@ -424,7 +425,8 @@ export default class GridItem extends React.Component<Props, State> {
+       <Resizable
+         // These are opts for the resize handle itself
+         draggableOpts={{
+-          disabled: !isResizable
++          disabled: !isResizable,
++          enableUserSelectHack: false
+         }}
+         className={isResizable ? undefined : "react-resizable-hide"}
+         width={position.width}
