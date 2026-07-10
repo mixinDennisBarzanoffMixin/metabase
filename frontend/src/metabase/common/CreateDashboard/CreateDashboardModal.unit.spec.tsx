@@ -1,5 +1,6 @@
 import userEvent from "@testing-library/user-event";
 import fetchMock from "fetch-mock";
+import { push } from "react-router-redux";
 
 import {
   setupCollectionItemsEndpoint,
@@ -25,6 +26,14 @@ import {
 } from "metabase-types/api/mocks";
 
 import { CreateDashboardModal } from "./CreateDashboardModal";
+
+jest.mock("react-router-redux", () => ({
+  ...jest.requireActual("react-router-redux"),
+  push: jest.fn((url) => ({
+    type: "@@router/CALL_HISTORY_METHOD",
+    payload: { method: "push", args: [url] },
+  })),
+}));
 
 const COLLECTION = {
   ROOT: createMockCollection({
@@ -62,7 +71,7 @@ function setup({ mockCreateDashboardResponse = true } = {}) {
   const settings = mockSettings({});
 
   if (mockCreateDashboardResponse) {
-    fetchMock.post(`path:/api/dashboard`, (call) => call?.options.body);
+    fetchMock.post(`path:/api/dashboard`, { id: 123, name: "my dashboard" });
   }
   const collections = Object.values(COLLECTION);
   setupCollectionsEndpoints({
@@ -105,7 +114,19 @@ function setup({ mockCreateDashboardResponse = true } = {}) {
 
 describe("CreateDashboardModal", () => {
   afterEach(() => {
+    jest.clearAllMocks();
     jest.restoreAllMocks();
+  });
+
+  it("opens created dashboards in view mode", async () => {
+    setup();
+
+    await userEvent.type(screen.getByLabelText("Name"), "my dashboard");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith("/dashboard/123-my-dashboard");
+    });
   });
 
   it("displays empty form fields", async () => {

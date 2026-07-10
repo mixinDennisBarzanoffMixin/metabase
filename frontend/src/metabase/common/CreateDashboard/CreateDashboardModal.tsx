@@ -32,7 +32,7 @@ export const CreateDashboardModal = ({
         onCreate(dashboard);
       } else {
         onClose?.();
-        dispatch(push(Urls.dashboard(dashboard, { editMode: true })));
+        dispatch(push(Urls.dashboard(dashboard)));
       }
     },
     [onCreate, onClose, dispatch],
