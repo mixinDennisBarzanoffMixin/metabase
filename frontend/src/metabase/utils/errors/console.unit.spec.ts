@@ -27,4 +27,12 @@ describe("captureConsolErrors", () => {
     ]);
     expect(console.errorBuffer[MAX_ERROR_LOGS - 1]).toEqual([`test error 6`]);
   });
+
+  it("should ignore React legacy context warnings", () => {
+    console.error(
+      "Warning: RouterContext uses the legacy childContextTypes API which is no longer supported",
+    );
+
+    expect(console.errorBuffer).toEqual([]);
+  });
 });

@@ -9,12 +9,8 @@ export const MAX_ERROR_LOGS = 20;
 function ignored(args: unknown[]) {
   const text = args.map((arg) => String(arg)).join(" ");
   return (
-    (text.includes("uses the legacy contextTypes API") ||
-      text.includes("uses the legacy childContextTypes API")) &&
-    (text.includes("withRouter(") ||
-      text.includes("Link") ||
-      text.includes("RouterContext") ||
-      text.includes("Router"))
+    text.includes("uses the legacy contextTypes API") ||
+    text.includes("uses the legacy childContextTypes API")
   );
 }
 
