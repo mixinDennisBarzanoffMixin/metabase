@@ -98,7 +98,7 @@ export const MoveCardModal = ({ card, onClose }: MoveCardModalProps) => {
 
           const url = Urls.dashboard(
             { id: destination.id, name: "", ...dashboard },
-            { editMode: true, scrollToDashcard: dashcard?.id },
+            { scrollToDashcard: dashcard?.id },
           );
           dispatch(push(url));
         }

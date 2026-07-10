@@ -332,6 +332,22 @@ describe("AddToDashSelectDashModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("should open selected dashboards in view mode", async () => {
+    const { onChangeLocation } = await setup({
+      mostRecentlyViewedDashboard: DASHBOARD_AT_ROOT,
+    });
+
+    await userEvent.click(
+      await screen.findByTestId("entity-picker-select-button"),
+    );
+
+    await waitFor(() => {
+      expect(onChangeLocation).toHaveBeenCalledWith(
+        `/dashboard/${DASHBOARD_AT_ROOT.id}-dashboard-at-root`,
+      );
+    });
+  });
+
   it("should render dashboards when opening public subcollections", async () => {
     await setup();
 

@@ -12,9 +12,9 @@ function ignored(args: unknown[]) {
     (text.includes("uses the legacy contextTypes API") ||
       text.includes("uses the legacy childContextTypes API")) &&
     (text.includes("withRouter(") ||
-      text.includes("Link uses") ||
-      text.includes("RouterContext uses") ||
-      text.includes("Router uses"))
+      text.includes("Link") ||
+      text.includes("RouterContext") ||
+      text.includes("Router"))
   );
 }
 

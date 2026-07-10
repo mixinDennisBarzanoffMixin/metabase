@@ -119,7 +119,7 @@ export function QueryModals({
 
       const url = Urls.dashboard(
         { id: dashboardId, name: "", ...question.dashboard(), ...dashboard },
-        { editMode: true, scrollToDashcard: dashcard?.id, tabId },
+        { scrollToDashcard: dashcard?.id, tabId },
       );
       dispatch(push(url));
     },

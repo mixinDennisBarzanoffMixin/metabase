@@ -50,12 +50,7 @@ export const AddToDashSelectDashModal = ({
     selectedDashboard?: Pick<Dashboard, "id" | "name">,
   ) => {
     if (selectedDashboard?.id) {
-      onChangeLocation(
-        Urls.dashboard(selectedDashboard, {
-          editMode: true,
-          addCardWithId: card.id,
-        }),
-      );
+      onChangeLocation(Urls.dashboard(selectedDashboard));
     }
   };
 
