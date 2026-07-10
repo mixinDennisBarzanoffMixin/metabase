@@ -6,12 +6,28 @@ declare global {
 
 export const MAX_ERROR_LOGS = 20;
 
+function ignored(args: unknown[]) {
+  const text = args.map((arg) => String(arg)).join(" ");
+  return (
+    (text.includes("uses the legacy contextTypes API") ||
+      text.includes("uses the legacy childContextTypes API")) &&
+    (text.includes("withRouter(") ||
+      text.includes("Link uses") ||
+      text.includes("RouterContext uses") ||
+      text.includes("Router uses"))
+  );
+}
+
 export function captureConsoleErrors() {
   console.errorBuffer = [];
 
   const originalError = console.error;
 
   console.error = function (...args: unknown[]) {
+    if (ignored(args)) {
+      return;
+    }
+
     if (console.errorBuffer.length >= MAX_ERROR_LOGS) {
       console.errorBuffer.pop();
     }
