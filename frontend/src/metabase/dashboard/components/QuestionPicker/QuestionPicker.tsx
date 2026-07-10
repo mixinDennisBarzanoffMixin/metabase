@@ -17,6 +17,7 @@ import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
 import { useGetIcon } from "metabase/hooks/use-icon";
 import { PLUGIN_COLLECTIONS } from "metabase/plugins";
 import { useDispatch, useSelector } from "metabase/redux";
+import type { UniverChartRef } from "metabase/veritly/univer";
 import {
   canUserCreateNativeQueries,
   canUserCreateQueries,
@@ -37,9 +38,13 @@ import {
 
 interface QuestionPickerProps {
   onSelect: BaseSelectListItemProps["onSelect"];
+  onSelectUniverChart?: (chart: UniverChartRef) => void;
 }
 
-export function QuestionPicker({ onSelect }: QuestionPickerProps) {
+export function QuestionPicker({
+  onSelect,
+  onSelectUniverChart,
+}: QuestionPickerProps) {
   const { data: allCollectionsList = [] } = useListCollectionsQuery();
   const userPersonalCollectionId = useSelector(getUserPersonalCollectionId);
   const baseCollectionsById = useMemo(
@@ -171,6 +176,7 @@ export function QuestionPicker({ onSelect }: QuestionPickerProps) {
           searchText={debouncedSearchText}
           collectionId={currentCollectionId}
           onSelect={onSelect}
+          onSelectUniverChart={onSelectUniverChart}
           showOnlyPublicCollections={showOnlyPublicCollections}
         />
       )}

@@ -12,6 +12,7 @@
  {:app
   {:target     :npm-module
    :output-dir "target/cljs_release/"
+   :devtools   {:devtools-url #shadow/env "MB_CLJS_DEVTOOLS_URL"}
    :dev        {:output-dir "target/cljs_dev/"
                 :compiler-options {:reader-features #{:cljs-dev}}}
    :compiler-options {:reader-features #{:cljs-release}

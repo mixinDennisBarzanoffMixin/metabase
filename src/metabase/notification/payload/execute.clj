@@ -46,7 +46,7 @@
 (defn virtual-card-of-type?
   "Check if dashcard is a virtual with type `ttype`, if `true` returns the dashcard, else returns `nil`.
 
-  There are currently 5 types of virtual card: \"text\", \"action\", \"link\", \"placeholder\", and \"heading\"."
+  There are currently 6 types of virtual card: \"text\", \"action\", \"link\", \"placeholder\", \"heading\", and \"univerChart\"."
   [dashcard ttype]
   (when (= ttype (get-in dashcard [:visualization_settings :virtual_card :display]))
     dashcard))
@@ -253,6 +253,9 @@
             (m/update-existing :dashcard resolve-inline-parameters parameters))))
 
     (virtual-card-of-type? dashcard "iframe")
+    nil
+
+    (virtual-card-of-type? dashcard "univerChart")
     nil
 
     (virtual-card-of-type? dashcard "action")

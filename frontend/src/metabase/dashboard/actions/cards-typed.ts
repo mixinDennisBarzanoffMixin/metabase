@@ -8,6 +8,7 @@ import { loadMetadataForCard } from "metabase/questions/actions";
 import { createThunkAction } from "metabase/redux";
 import type { Dispatch, GetState } from "metabase/redux/store";
 import { addUndo } from "metabase/redux/undo";
+import type { UniverChartRef } from "metabase/veritly/univer";
 import {
   isQuestionDashCard,
   isVirtualDashCard,
@@ -238,6 +239,24 @@ export const addLinkDashCardToDashboard =
     const dashcardOverrides = {
       card,
       visualization_settings: { virtual_card: card },
+    };
+    dispatch(addDashCardToDashboard({ dashId, tabId, dashcardOverrides }));
+  };
+
+export type AddUniverChartOpts = NewDashCardOpts & {
+  chart: UniverChartRef;
+};
+
+export const addUniverChartDashCardToDashboard =
+  ({ dashId, tabId, chart }: AddUniverChartOpts) =>
+  (dispatch: Dispatch) => {
+    const card = createVirtualCard("univerChart");
+    const dashcardOverrides = {
+      card,
+      visualization_settings: {
+        virtual_card: card,
+        univerChart: chart,
+      },
     };
     dispatch(addDashCardToDashboard({ dashId, tabId, dashcardOverrides }));
   };

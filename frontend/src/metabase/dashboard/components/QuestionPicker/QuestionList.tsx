@@ -19,6 +19,7 @@ import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
 import { useGetIcon } from "metabase/hooks/use-icon";
 import { PLUGIN_MODERATION } from "metabase/plugins";
 import { useDispatch, useSelector } from "metabase/redux";
+import { listUniverCharts, type UniverChartRef } from "metabase/veritly/univer";
 import { ActionIcon, Box, Flex, Icon, Tooltip } from "metabase/ui";
 import { DEFAULT_SEARCH_LIMIT } from "metabase/utils/constants";
 import { VisualizerModal } from "metabase/visualizer/components/VisualizerModal";
@@ -36,6 +37,7 @@ interface QuestionListProps {
   searchText: string;
   collectionId: CollectionId;
   onSelect: BaseSelectListItemProps["onSelect"];
+  onSelectUniverChart?: (chart: UniverChartRef) => void;
   hasCollections: boolean;
   showOnlyPublicCollections: boolean;
 }
@@ -44,6 +46,7 @@ export function QuestionList({
   searchText,
   collectionId,
   onSelect,
+  onSelectUniverChart,
   hasCollections,
   showOnlyPublicCollections,
 }: QuestionListProps) {
@@ -57,6 +60,19 @@ export function QuestionList({
 
   const selectedTabId = useSelector(getSelectedTabId);
   const dashboardId = useSelector(getDashboardId);
+  const [charts, setCharts] = useState<UniverChartRef[]>([]);
+
+  useEffect(() => {
+    if (!onSelectUniverChart) return;
+
+    const ctrl = new AbortController();
+    listUniverCharts(ctrl.signal)
+      .then(setCharts)
+      .catch(() => {
+        if (!ctrl.signal.aborted) setCharts([]);
+      });
+    return () => ctrl.abort();
+  }, [onSelectUniverChart]);
 
   useEffect(() => {
     setQueryOffset(0);
@@ -117,6 +133,12 @@ export function QuestionList({
   const isFetching = isSearching ? searchIsFetching : itemsIsFetching;
   const dispatch = useDispatch();
   const list: (SearchResult | CollectionItem)[] = data?.data ?? [];
+  const query = trimmedSearchText.toLowerCase();
+  const visible = onSelectUniverChart
+    ? charts.filter((chart) =>
+        query.length === 0 ? true : chart.name.toLowerCase().includes(query),
+      )
+    : [];
 
   if (collectionId === "personal" && !searchText) {
     return null;
@@ -127,7 +149,9 @@ export function QuestionList({
   }
 
   const shouldShowEmptyState =
-    list.length === 0 && (isSearching || !hasCollections);
+    list.length === 0 &&
+    visible.length === 0 &&
+    (isSearching || !hasCollections);
 
   if (shouldShowEmptyState) {
     return (
@@ -140,6 +164,29 @@ export function QuestionList({
   return (
     <>
       <SelectList>
+        {visible.map((chart) => (
+          <Flex
+            key={`${chart.unitId}:${chart.chartId}`}
+            className={S.QuestionListItemRoot}
+            gap="2px"
+          >
+            <SelectList.Item
+              id={`univer:${chart.unitId}:${chart.chartId}`}
+              classNames={{
+                root: S.QuestionListItemRoot,
+                label: S.QuestionListItemLabel,
+              }}
+              className={S.QuestionListItem}
+              name={chart.name}
+              icon={{
+                name: "lineandbar",
+                size: 16,
+                className: S.QuestionListItemIcon,
+              }}
+              onSelect={() => onSelectUniverChart?.(chart)}
+            />
+          </Flex>
+        ))}
         {list.map((item) => (
           <Flex key={item.id} className={S.QuestionListItemRoot} gap="2px">
             <SelectList.Item

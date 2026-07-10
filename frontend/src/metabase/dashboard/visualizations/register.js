@@ -6,6 +6,7 @@ import { Heading } from "./Heading";
 import { IFrameViz } from "./IFrameViz";
 import { LinkViz } from "./LinkViz";
 import { Text } from "./Text";
+import { UniverChart } from "./UniverChart";
 
 // eslint-disable-next-line import/no-default-export -- deprecated usage
 export default function () {
@@ -15,4 +16,5 @@ export default function () {
   registerVisualization(LinkViz);
   registerVisualization(IFrameViz);
   registerVisualization(Text);
+  registerVisualization(UniverChart);
 }

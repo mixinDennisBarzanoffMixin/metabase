@@ -32,6 +32,8 @@ RUN npm install -g bun
 # install frontend dependencies
 RUN bun install --frozen-lockfile
 
+WORKDIR /home/node/packages/metabase
+
 RUN INTERACTIVE=false CI=true MB_EDITION=$MB_EDITION bin/build.sh :version ${VERSION}
 
 # ###################
@@ -46,7 +48,7 @@ FROM eclipse-temurin:21-jre-alpine AS runner
 ENV FC_LANG=en-US LC_CTYPE=en_US.UTF-8
 
 # copy certs before the RUN so keytool can import them
-COPY bin/docker/DigiCertGlobalRootG2.crt.pem /app/certs/DigiCertGlobalRootG2.crt.pem
+COPY packages/metabase/bin/docker/DigiCertGlobalRootG2.crt.pem /app/certs/DigiCertGlobalRootG2.crt.pem
 
 # dependencies
 RUN apk add -U bash fontconfig curl font-noto font-noto-arabic font-noto-hebrew font-noto-cjk java-cacerts && \
@@ -59,8 +61,8 @@ RUN apk add -U bash fontconfig curl font-noto font-noto-arabic font-noto-hebrew 
     mkdir -p /plugins && chmod a+rwx /plugins
 
 # add Metabase script and uberjar
-COPY --from=builder /home/node/target/uberjar/metabase.jar /app/
-COPY bin/docker/run_metabase.sh /app/
+COPY --from=builder /home/node/packages/metabase/target/uberjar/metabase.jar /app/
+COPY packages/metabase/bin/docker/run_metabase.sh /app/
 
 # expose our default runtime port
 EXPOSE 3000

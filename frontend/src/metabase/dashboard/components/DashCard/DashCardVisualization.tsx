@@ -339,6 +339,7 @@ export function DashCardVisualization({
             heading: t`Heading Card`,
             placeholder: t`Placeholder Card`,
             iframe: t`Iframe Card`,
+            univerChart: t`Univer Chart`,
           }[virtualDashcardType] ??
           t`This card does not support click mappings`;
 

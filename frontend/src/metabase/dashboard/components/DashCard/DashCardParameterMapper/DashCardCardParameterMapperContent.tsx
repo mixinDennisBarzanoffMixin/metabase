@@ -138,6 +138,7 @@ export const DashCardCardParameterMapperContent = ({
         text: t`You can connect widgets to {{variables}} in text cards.`,
         link: t`You can connect widgets to {{variables}} in link cards.`,
         iframe: t`You can connect widgets to {{variables}} in iframe cards.`,
+        univerChart: "",
         action: t`Open this card's action settings to connect variables`,
         placeholder: "",
       }[virtualCardType]) ??
