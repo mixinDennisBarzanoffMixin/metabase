@@ -3,6 +3,9 @@
   (:require
    [clojure.string :as str]
    [metabase.api.common :as api]
+   [metabase.dashboards.autoplace :as autoplace]
+   [metabase.dashboards.models.dashboard :as dashboard]
+   [metabase.events.core :as events]
    [metabase.queries.core :as queries]
    [metabase.veritly.project-context :as context]
    [metabase.veritly.projects :as projects]
@@ -41,3 +44,54 @@
      :name   (:name card)
      :path   (str (:name card) ".question")
      :cardId (str (:id card))}))
+
+(defn- required-text
+  [chart key]
+  (let [value (get chart key)]
+    (when-not (and (string? value) (seq value))
+      (throw (ex-info (str "Univer chart " (name key) " missing.") {:status-code 400})))
+    value))
+
+(defn- chart-ref
+  [chart]
+  (when-not (map? chart)
+    (throw (ex-info "Univer chart reference missing." {:status-code 400})))
+  (let [revision  (:revision chart)
+        chart-type (:chartType chart)
+        unit-name (required-text chart :unitName)
+        sheet-name (required-text chart :sheetName)]
+    (when-not (number? revision)
+      (throw (ex-info "Univer chart revision missing." {:status-code 400})))
+    (when-not (number? chart-type)
+      (throw (ex-info "Univer chart chartType missing." {:status-code 400})))
+    {:unitId    (required-text chart :unitId)
+     :unitName  unit-name
+     :sheetId   (required-text chart :sheetId)
+     :sheetName sheet-name
+     :chartId   (required-text chart :id)
+     :revision  revision
+     :name      (str unit-name " / " sheet-name " / Chart " chart-type)}))
+
+(defn add-univer-chart!
+  [dashboard-id chart]
+  (projects/check-dashboard! dashboard-id)
+  (let [dash     (api/write-check :model/Dashboard dashboard-id)
+        placed   (t2/select [:model/DashboardCard :row :col :size_x :size_y :dashboard_tab_id]
+                            :dashboard_id dashboard-id)
+        position (autoplace/get-position-for-new-dashcard placed 6 5 autoplace/default-grid-width)
+        card     {:name                   nil
+                  :display                "univerChart"
+                  :visualization_settings {}
+                  :archived               false}
+        created  (first (dashboard/add-dashcards!
+                         dash
+                         [(merge position
+                                 {:card_id                nil
+                                  :visualization_settings {:virtual_card card
+                                                           :univerChart  (chart-ref chart)}})]))]
+    (events/publish-event! :event/dashboard-add-cards
+                           {:object dash :user-id api/*current-user-id* :dashcards [created]})
+    {:kind        "univerChart"
+     :dashboardId (str dashboard-id)
+     :dashcardId  (str (:id created))
+     :chart       (get-in created [:visualization_settings :univerChart])}))
