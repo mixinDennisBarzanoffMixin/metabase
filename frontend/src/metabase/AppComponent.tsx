@@ -112,31 +112,32 @@ function App({
 
   return (
     <ErrorBoundary onError={onError}>
-      <VeritlyFrame />
-      <ScrollToTop>
-        <AppKBarProvider>
-          <KeyboardTriggeredErrorModal />
-          <AppContainer className={CS.spread}>
-            <AppBanner />
-            {isAppBarVisible && <AppBarContainer />}
-            <AppContentContainer isAdminApp={isAdminApp}>
-              {isNavBarEnabled && <Navbar />}
-              <AppContent ref={setViewportElement}>
-                <ContentViewportContext.Provider
-                  value={viewportElement ?? null}
-                >
-                  {errorPage ? getErrorComponent(errorPage) : children}
-                </ContentViewportContext.Provider>
-              </AppContent>
-              <UndoListing />
-              <StatusListing />
-              <NewModals />
-              <Metabot hide={isAdminApp || isDataStudioApp} />
-            </AppContentContainer>
-          </AppContainer>
-          <Palette />
-        </AppKBarProvider>
-      </ScrollToTop>
+      <VeritlyFrame>
+        <ScrollToTop>
+          <AppKBarProvider>
+            <KeyboardTriggeredErrorModal />
+            <AppContainer className={CS.spread}>
+              <AppBanner />
+              {isAppBarVisible && <AppBarContainer />}
+              <AppContentContainer isAdminApp={isAdminApp}>
+                {isNavBarEnabled && <Navbar />}
+                <AppContent ref={setViewportElement}>
+                  <ContentViewportContext.Provider
+                    value={viewportElement ?? null}
+                  >
+                    {errorPage ? getErrorComponent(errorPage) : children}
+                  </ContentViewportContext.Provider>
+                </AppContent>
+                <UndoListing />
+                <StatusListing />
+                <NewModals />
+                <Metabot hide={isAdminApp || isDataStudioApp} />
+              </AppContentContainer>
+            </AppContainer>
+            <Palette />
+          </AppKBarProvider>
+        </ScrollToTop>
+      </VeritlyFrame>
     </ErrorBoundary>
   );
 }
