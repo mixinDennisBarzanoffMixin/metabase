@@ -1,6 +1,6 @@
 import cx from "classnames";
 import type { PropsWithChildren } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Route, WithRouterProps } from "react-router";
 import { replace } from "react-router-redux";
 
@@ -36,6 +36,7 @@ import { useDispatch, useSelector } from "metabase/redux";
 import { setErrorPage } from "metabase/redux/app";
 import * as Urls from "metabase/urls";
 import { parseHashOptions, stringifyHashOptions } from "metabase/utils/browser";
+import { useVeritlyFlush } from "metabase/veritly/flush";
 import type { DashboardId, Dashboard as IDashboard } from "metabase-types/api";
 
 import { useRegisterDashboardMetabotContext } from "../../hooks/use-register-dashboard-metabot-context";
@@ -65,7 +66,21 @@ function DashboardAppInner({
   const pageFavicon = useSelector(getFavicon);
   useFavicon({ favicon: pageFavicon });
   useSlowCardNotification();
-  const { dashboard, loadingStartTime, isRunning } = useDashboardContext();
+  const state = useDashboardContext();
+  const { dashboard, loadingStartTime, isRunning } = state;
+  const latest = useRef(state);
+  latest.current = state;
+  useVeritlyFlush("dashboard", async () => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) {
+      active.blur();
+    }
+    await new Promise<void>((done) => setTimeout(done, 0));
+    if (!latest.current.isDirty) {
+      return;
+    }
+    await latest.current.updateDashboardAndCards();
+  });
   const documentTitle = useSelector(getDocumentTitle);
 
   usePageTitleWithLoadingTime(documentTitle || dashboard?.name || "", {

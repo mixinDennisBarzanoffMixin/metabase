@@ -70,6 +70,7 @@ import SegmentRevisionsContainer from "metabase/reference/segments/SegmentRevisi
 import { SearchApp } from "metabase/search/containers/SearchApp";
 import { Setup } from "metabase/setup/components/Setup";
 import getCollectionTimelineRoutes from "metabase/timelines/collections/routes";
+import { VeritlyWorkspace } from "metabase/veritly/frame";
 
 import { trackPageView } from "./analytics";
 import {
@@ -244,6 +245,7 @@ export const getRoutes = (store: AppStore) => {
           />
 
           <Route path="veritly">
+            <Route path="workspace" component={VeritlyWorkspace} />
             <Route path="source">
               <Route path="new" component={DatabasePage} />
               <Route path=":databaseId" component={DatabasePage} />

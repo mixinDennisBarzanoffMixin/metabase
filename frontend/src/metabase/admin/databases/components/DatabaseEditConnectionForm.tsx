@@ -1,6 +1,6 @@
 import type { LocationDescriptorObject } from "history";
 import { updateIn } from "icepick";
-import { type ComponentType, useState } from "react";
+import { type ComponentType, useRef, useState } from "react";
 import { type Route, withRouter } from "react-router";
 import _ from "underscore";
 
@@ -21,6 +21,7 @@ import type {
 import { useDispatch } from "metabase/redux";
 import type { Dispatch } from "metabase/redux/store";
 import { Text } from "metabase/ui";
+import { useVeritlyFlush } from "metabase/veritly/flush";
 import type {
   DatabaseData,
   DatabaseEditErrorType,
@@ -65,6 +66,7 @@ export const DatabaseEditConnectionForm = withRouter(
     const dispatch = useDispatch();
 
     const [isDirty, setIsDirty] = useState(false);
+    const pending = useRef<PromiseWithResolvers<void>>();
 
     const autofocusFieldName =
       location.hash?.slice(1) || props.autofocusFieldName;
@@ -81,11 +83,49 @@ export const DatabaseEditConnectionForm = withRouter(
         const savedDB = await saveFn(database);
         scheduleCallback(() => {
           onSubmitted(savedDB);
+          pending.current?.resolve();
+          pending.current = undefined;
         });
       } catch (error) {
-        throw getSubmitError(error as DatabaseEditErrorType);
+        const result = getSubmitError(error as DatabaseEditErrorType);
+        pending.current?.reject(
+          result instanceof Error
+            ? result
+            : new Error("Metabase could not save the database connection"),
+        );
+        pending.current = undefined;
+        throw result;
       }
     };
+
+    useVeritlyFlush("source", async () => {
+      if (!isDirty) {
+        return;
+      }
+      const form = document.querySelector('[data-testid="database-form"]');
+      if (!(form instanceof HTMLFormElement)) {
+        throw new Error("Metabase database form is unavailable");
+      }
+      if (pending.current) {
+        throw new Error("Metabase database form is already saving");
+      }
+      const wait = Promise.withResolvers<void>();
+      pending.current = wait;
+      form.requestSubmit();
+      const late = Promise.withResolvers<never>();
+      const timer = setTimeout(
+        () => late.reject(new Error("Metabase database form did not save")),
+        4_500,
+      );
+      try {
+        await Promise.race([wait.promise, late.promise]);
+      } finally {
+        clearTimeout(timer);
+        if (pending.current === wait) {
+          pending.current = undefined;
+        }
+      }
+    });
 
     return (
       <ErrorBoundary errorComponent={GenericError as ComponentType}>

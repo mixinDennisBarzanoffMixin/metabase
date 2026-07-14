@@ -30,6 +30,7 @@ import { getErrorPage } from "metabase/selectors/app";
 import { getApplicationName } from "metabase/selectors/whitelabel";
 import { StatusListing } from "metabase/status/components/StatusListing";
 import { initializeIframeResizer } from "metabase/utils/dom";
+import { VeritlyFrame } from "metabase/veritly/frame";
 
 import { AppContainer, AppContent, AppContentContainer } from "./App.styled";
 import { AppKBarProvider } from "./AppKBarProvider";
@@ -111,6 +112,7 @@ function App({
 
   return (
     <ErrorBoundary onError={onError}>
+      <VeritlyFrame />
       <ScrollToTop>
         <AppKBarProvider>
           <KeyboardTriggeredErrorModal />

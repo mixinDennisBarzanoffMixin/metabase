@@ -61,6 +61,7 @@ import {
   getUser,
   getUserIsAdmin,
 } from "metabase/selectors/user";
+import { useVeritlyFlush } from "metabase/veritly/flush";
 import type { Series } from "metabase-types/api";
 
 import {
@@ -345,6 +346,8 @@ type QueryBuilderInnerProps = ReduxProps &
   };
 
 function QueryBuilderInner(props: QueryBuilderInnerProps) {
+  const latest = useRef(props);
+  latest.current = props;
   useFavicon({ favicon: props.pageFavicon ?? null });
   const { data: fetchedTimelines, isSuccess: areTimelinesLoaded } =
     useListTimelinesQuery({
@@ -468,6 +471,29 @@ function QueryBuilderInner(props: QueryBuilderInnerProps) {
   const handleCreate = useCreateQuestion({ scheduleCallback });
 
   const handleSave = useSaveQuestion({ scheduleCallback });
+
+  useVeritlyFlush("question", async () => {
+    if (document.querySelector('[role="dialog"] form')) {
+      throw new Error(
+        "The question cannot flush while an unfinished dialog is open",
+      );
+    }
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) {
+      active.blur();
+    }
+    await new Promise<void>((done) => setTimeout(done, 0));
+    const current = latest.current;
+    if (!current.isDirty) {
+      return;
+    }
+    if (!current.question || current.question.id() == null) {
+      throw new Error(
+        "A new question cannot flush before its first explicit save",
+      );
+    }
+    await handleSave(current.question);
+  });
 
   useMount(() => {
     // Prevent initializing the query builder if the route is out of sync

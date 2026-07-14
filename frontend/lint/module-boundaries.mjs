@@ -168,6 +168,7 @@ const elements = [
   createElement({ type: "feature", name: "query_builder" }),
   createElement({ type: "feature", name: "reference" }),
   createElement({ type: "feature", name: "search" }),
+  createElement({ type: "shared", name: "veritly" }),
 
   // app
   ...[
