@@ -3,7 +3,7 @@
    how these work. `/api/` routes are in [[metabase.api-routes.routes]]."
   (:require
    [clojure.string :as str]
-   [compojure.core :as compojure :refer #_{:clj-kondo/ignore [:discouraged-var]} [context defroutes GET OPTIONS POST]]
+   [compojure.core :as compojure :refer #_{:clj-kondo/ignore [:discouraged-var]} [context defroutes DELETE GET OPTIONS PATCH POST]]
    [compojure.route :as route]
    [metabase.api.macros :as api.macros]
    [metabase.api.common :as api]
@@ -190,6 +190,16 @@
     (GET "/api/veritly/files" []
       (api/check-403 api/*current-user-id*)
       {:status 200 :body (veritly.projects/files)})
+    (DELETE "/api/veritly/files" []
+      (api/check-403 api/*current-user-id*)
+      {:status 200 :body (veritly.projects/cleanup!)})
+    (PATCH "/api/veritly/files/:kind/:id" [kind id :as request]
+      (api/check-403 api/*current-user-id*)
+      {:status 200
+       :body   (veritly.projects/rename-file! kind (Long/parseLong id) (get-in request [:body :name]))})
+    (DELETE "/api/veritly/files/:kind/:id" [kind id]
+      (api/check-403 api/*current-user-id*)
+      {:status 200 :body (veritly.projects/remove-file! kind (Long/parseLong id))})
     (POST "/api/veritly/question" request
       (api/check-403 api/*current-user-id*)
       {:status 200 :body (veritly.files/create-question! (get-in request [:body :name]))})

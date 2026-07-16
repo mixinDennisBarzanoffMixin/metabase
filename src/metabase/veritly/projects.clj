@@ -174,3 +174,63 @@
                      (assoc (file-row "source" (:id database) (:name database) ".source")
                             :databaseId (str (:id database))))]
     {:files (vec (concat databases cards dashboards))}))
+
+(defn rename-file!
+  "Rename a project-owned dashboard or question."
+  [kind id name]
+  (let [value (clean-name name "Untitled")]
+    (case kind
+      "dashboard" (do
+                    (check-dashboard! id)
+                    (t2/update! :model/Dashboard id {:name value}))
+      "question" (do
+                   (when-not (card-in-project? id)
+                     (throw (ex-info "Metabase question is outside the current Veritly project."
+                                     {:status-code 404 :card-id id})))
+                   (t2/update! :model/Card id {:name value}))
+      (throw (ex-info "This Metabase resource cannot be renamed safely."
+                      {:status-code 409 :kind kind})))
+    {:ok true :name value}))
+
+(defn remove-file!
+  "Idempotently remove a project-owned dashboard or question."
+  [kind id]
+  (case kind
+    "dashboard" (when (t2/exists? :model/Dashboard :id id)
+                  (check-dashboard! id)
+                  (t2/delete! :model/DashboardCard :dashboard_id id)
+                  (t2/delete! :model/Dashboard :id id))
+    "question" (when (t2/exists? :model/Card :id id)
+                 (when-not (card-in-project? id)
+                   (throw (ex-info "Metabase question is outside the current Veritly project."
+                                   {:status-code 404 :card-id id})))
+                 (t2/delete! :model/DashboardCard :card_id id)
+                 (t2/delete! :model/Card :id id))
+    (throw (ex-info "This Metabase resource cannot be deleted safely."
+                    {:status-code 409 :kind kind})))
+  {:ok true})
+
+(defn cleanup!
+  "Idempotently remove all resources owned by the current Veritly project."
+  []
+  (let [project-id (context/require-project-id)
+        root-id    (t2/select-one-fn :root_collection_id :veritly_project :project_id project-id)]
+    (when root-id
+      (let [ids      (collection-ids root-id)
+            folders  (t2/select :model/Collection
+                                {:where [:or
+                                         [:= :id root-id]
+                                         [:like :location (str "/" root-id "/%")]]})
+            dash-ids (t2/select-fn-set :id :model/Dashboard {:where [:in :collection_id ids]})
+            card-ids (t2/select-fn-set :id :model/Card {:where [:in :collection_id ids]})]
+        (when (seq dash-ids)
+          (t2/delete! :model/DashboardCard {:where [:in :dashboard_id dash-ids]})
+          (t2/delete! :model/Dashboard {:where [:in :id dash-ids]}))
+        (when (seq card-ids)
+          (t2/delete! :model/DashboardCard {:where [:in :card_id card-ids]})
+          (t2/delete! :model/Card {:where [:in :id card-ids]}))
+        (t2/delete! :veritly_project_database :project_id project-id)
+        (t2/delete! :veritly_project :project_id project-id)
+        (doseq [folder (sort-by (comp count :location) > folders)]
+          (t2/delete! :model/Collection :id (:id folder))))))
+  {:ok true})
