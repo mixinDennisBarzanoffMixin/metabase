@@ -4,6 +4,7 @@
    [clojure.string :as str]
    [metabase.driver :as driver]
    [metabase.driver.settings :as driver.settings]
+   [metabase.driver.sql-jdbc.connection.veritly-tunnel :as veritly]
    [metabase.util :as u]
    [metabase.util.log :as log])
   (:import
@@ -159,6 +160,9 @@
 (defmethod driver/incorporate-ssh-tunnel-details :sql-jdbc
   [driver db-details]
   (cond
+    (veritly/enabled? db-details)
+    (veritly/include! db-details)
+
     ;; no ssh tunnel in use
     (not (use-ssh-tunnel? db-details))
     db-details
@@ -174,6 +178,7 @@
 (defn close-tunnel!
   "Close a running tunnel session"
   [details]
+  (veritly/close! details)
   (when (and (use-ssh-tunnel? details) (ssh-tunnel-open? details))
     (log/tracef "Closing SSH tunnel: %s" (:tunnel-session details))
     (.close ^ClientSession (:tunnel-session details)))
@@ -183,15 +188,21 @@
 (defn do-with-ssh-tunnel
   "Starts an SSH tunnel, runs the supplied function with the tunnel open, then closes it"
   [details f]
-  (if (use-ssh-tunnel? details)
-    (let [details-with-tunnel (include-ssh-tunnel! details)]
+  (if (veritly/enabled? details)
+    (let [details-with-tunnel (veritly/include! details)]
       (try
-        (log/trace (u/format-color 'cyan "<< OPENED SSH TUNNEL >>"))
         (f details-with-tunnel)
         (finally
-          (close-tunnel! details-with-tunnel)
-          (log/trace (u/format-color 'cyan "<< CLOSED SSH TUNNEL >>")))))
-    (f details)))
+          (veritly/close! details-with-tunnel))))
+    (if (use-ssh-tunnel? details)
+      (let [details-with-tunnel (include-ssh-tunnel! details)]
+        (try
+          (log/trace (u/format-color 'cyan "<< OPENED SSH TUNNEL >>"))
+          (f details-with-tunnel)
+          (finally
+            (close-tunnel! details-with-tunnel)
+            (log/trace (u/format-color 'cyan "<< CLOSED SSH TUNNEL >>")))))
+      (f details))))
 
 ;;; TODO -- I think `with-ssh-tunnel-details` or something like that would be a better name for this. Since it doesn't
 ;;; actually give you a tunnel. It just gives you connection details that include a tunnel in there.

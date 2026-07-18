@@ -19,8 +19,12 @@ export const useDatabaseConnection = ({
 }: UseDatabaseConnectionProps) => {
   const dispatch = useDispatch();
   const queryParams = new URLSearchParams(location.search);
+  const secretParams = new URLSearchParams(location.hash.replace(/^#/, ""));
   const file = location.pathname.includes("/veritly/source");
   const name = queryParams.get("name");
+  const veritlyRoute = secretParams.get("veritlyRoute");
+  const veritlyToken = secretParams.get("veritlyToken");
+  const veritlyGateway = secretParams.get("veritlyGateway");
   const preselectedEngine =
     queryParams.get("engine") ?? getDefaultEngineKey(engines || {});
   const fromEmbeddingSetupGuide = queryParams.has(RETURN_TO_SETUP_GUIDE_PARAM);
@@ -36,6 +40,16 @@ export const useDatabaseConnection = ({
     is_attached_dwh: false,
     router_user_attribute: undefined,
     engine: preselectedEngine,
+    ...(veritlyRoute && veritlyToken && veritlyGateway
+      ? {
+          details: {
+            "veritly-tunnel-enabled": true,
+            "veritly-route": veritlyRoute,
+            "veritly-token": veritlyToken,
+            "veritly-gateway": veritlyGateway,
+          },
+        }
+      : {}),
   };
 
   const handleCancel = () => {

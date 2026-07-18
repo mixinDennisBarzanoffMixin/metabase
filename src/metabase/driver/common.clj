@@ -75,7 +75,23 @@
 (def ssh-tunnel-preferences
   "Configuration parameters to include in the add driver page on drivers that
   support ssh tunnels"
-  [{:name         "tunnel-enabled"
+  [{:name         "veritly-tunnel-enabled"
+    :display-name (deferred-tru "Use a Veritly connector")
+    :type         :hidden
+    :default      false}
+   {:name         "veritly-route"
+    :display-name (deferred-tru "Veritly route")
+    :type         :hidden
+    :visible-if   {"veritly-tunnel-enabled" true}}
+   {:name         "veritly-token"
+    :display-name (deferred-tru "Veritly route token")
+    :type         :hidden
+    :visible-if   {"veritly-tunnel-enabled" true}}
+   {:name         "veritly-gateway"
+    :display-name (deferred-tru "Veritly gateway")
+    :type         :hidden
+    :visible-if   {"veritly-tunnel-enabled" true}}
+   {:name         "tunnel-enabled"
     :display-name (deferred-tru "Use an SSH tunnel")
     :placeholder  (deferred-tru "Enable this SSH tunnel?")
     :type         :boolean

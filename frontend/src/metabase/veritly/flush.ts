@@ -51,7 +51,7 @@ function kind(path: string): Kind {
 }
 
 function route() {
-  const value = `${window.location.pathname}${window.location.search}`;
+  const value = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   const index = value.indexOf("/veritly/");
   if (index < 0) {
     return value;
