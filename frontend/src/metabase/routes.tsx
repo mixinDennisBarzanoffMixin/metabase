@@ -4,6 +4,7 @@ import { IndexRedirect, IndexRoute, Redirect, Route } from "react-router";
 import App from "metabase/AppComponent";
 import { getAccountRoutes } from "metabase/account/routes";
 import { DatabasePage } from "metabase/admin/databases/containers/DatabasePage";
+import { VeritlySourcePage } from "metabase/admin/databases/containers/VeritlySourcePage";
 import CollectionPermissionsModal from "metabase/admin/permissions/components/CollectionPermissionsModal/CollectionPermissionsModal";
 import { getRoutes as getAdminRoutes } from "metabase/admin/routes";
 import { ForgotPassword } from "metabase/auth/components/ForgotPassword";
@@ -247,7 +248,7 @@ export const getRoutes = (store: AppStore) => {
           <Route path="veritly">
             <Route path="workspace" component={VeritlyWorkspace} />
             <Route path="source">
-              <Route path="new" component={DatabasePage} />
+              <Route path="new" component={VeritlySourcePage} />
               <Route path=":databaseId" component={DatabasePage} />
             </Route>
             <Route path="dashboard/:slug" component={DashboardApp} />

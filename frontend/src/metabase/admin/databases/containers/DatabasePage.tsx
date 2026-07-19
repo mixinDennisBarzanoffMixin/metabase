@@ -28,14 +28,24 @@ import { useDatabaseConnection } from "../hooks/use-database-connection";
 import { trackHelpButtonClick } from "./analytics";
 
 interface DatabasePageProps {
-  params: { databaseId: string };
+  params: { databaseId?: string };
   route: Route;
+  onEngineChange?: (engine: string | undefined) => void;
+  initial?: {
+    engine: string;
+    details?: Record<string, unknown>;
+  };
 }
 
-export function DatabasePage({ params, route }: DatabasePageProps) {
+export function DatabasePage({
+  params,
+  route,
+  initial,
+  onEngineChange,
+}: DatabasePageProps) {
   const engines = useSelector(getEngines);
   const { database, databaseReq, handleCancel, handleOnSubmit, title, config } =
-    useDatabaseConnection({ databaseId: params.databaseId, engines });
+    useDatabaseConnection({ databaseId: params.databaseId, engines, initial });
   const [showSidePanel, { open: openSidePanel, close: closeSidePanel }] =
     useDisclosure(false);
   const [selectedEngineKey, setSelectedEngineKey] = useState<EngineKey>(
@@ -44,8 +54,9 @@ export function DatabasePage({ params, route }: DatabasePageProps) {
   const helpContentsExist =
     !!selectedEngineKey && !!ENGINE_DOC_MAP[selectedEngineKey];
 
-  const onEngineChange = (engineKey?: string) => {
+  const handleEngineChange = (engineKey?: string) => {
     setSelectedEngineKey(engineKey as EngineKey);
+    onEngineChange?.(engineKey);
   };
 
   useEffect(() => {
@@ -94,14 +105,14 @@ export function DatabasePage({ params, route }: DatabasePageProps) {
           <SettingsSection>
             <DatabaseEditConnectionForm
               database={database}
-              isAttachedDWH={database?.is_attached_dwh ?? false}
+              isAttachedDWH={database?.is_attached_dwh === true}
               initializeError={databaseReq.error}
               onSubmitted={handleOnSubmit}
               route={route}
               onCancel={handleCancel}
               config={config}
               formLocation="full-page"
-              onEngineChange={onEngineChange}
+              onEngineChange={handleEngineChange}
             />
           </SettingsSection>
         </Box>

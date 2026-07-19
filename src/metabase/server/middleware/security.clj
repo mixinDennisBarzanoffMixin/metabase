@@ -251,6 +251,7 @@
                                     config/is-dev? (conj frontend-address))
                                   (into ["*"] always-allowed-resource-hosts))
                   :connect-src  ["'self'"
+                                 "https://*.veritly.co.uk"
                                  ;; Google Identity Services
                                  "https://accounts.google.com"
                                  ;; MailChimp. So people can sign up for the Metabase mailing list in the sign up process
@@ -265,7 +266,9 @@
                                    (str "*:" frontend-dev-port " ws://*:" frontend-dev-port))
                                  ;; CLJS REPL
                                  (when config/is-dev?
-                                   (str "ws://*:" cljs-dev-port))]
+                                   (str "ws://*:" cljs-dev-port))
+                                 (when config/is-dev?
+                                   "http://*.veritly.svc.cluster.local")]
                   :manifest-src ["'self'"]
                   :media-src    ["www.metabase.com"]}]
       (format "%s %s; " (name k) (str/join " " vs))))})

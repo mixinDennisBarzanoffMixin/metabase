@@ -10,23 +10,24 @@ import type { DatabaseId, Engine, EngineKey } from "metabase-types/api";
 
 interface UseDatabaseConnectionProps {
   databaseId?: string;
-  engines?: Record<EngineKey, Engine>;
+  engines: Record<EngineKey, Engine>;
+  initial?: {
+    engine: string;
+    details?: Record<string, unknown>;
+  };
 }
 
 export const useDatabaseConnection = ({
   databaseId,
   engines,
+  initial,
 }: UseDatabaseConnectionProps) => {
   const dispatch = useDispatch();
   const queryParams = new URLSearchParams(location.search);
-  const secretParams = new URLSearchParams(location.hash.replace(/^#/, ""));
   const file = location.pathname.includes("/veritly/source");
   const name = queryParams.get("name");
-  const veritlyRoute = secretParams.get("veritlyRoute");
-  const veritlyToken = secretParams.get("veritlyToken");
-  const veritlyGateway = secretParams.get("veritlyGateway");
-  const preselectedEngine =
-    queryParams.get("engine") ?? getDefaultEngineKey(engines || {});
+  const selected = queryParams.get("engine");
+  const preselectedEngine = selected ? selected : getDefaultEngineKey(engines);
   const fromEmbeddingSetupGuide = queryParams.has(RETURN_TO_SETUP_GUIDE_PARAM);
   const addingNewDatabase = databaseId === undefined;
 
@@ -34,23 +35,16 @@ export const useDatabaseConnection = ({
     addingNewDatabase ? skipToken : { id: parseInt(databaseId, 10) },
   );
 
-  const database = databaseReq.currentData ?? {
-    id: undefined,
-    name: name ? name : undefined,
-    is_attached_dwh: false,
-    router_user_attribute: undefined,
-    engine: preselectedEngine,
-    ...(veritlyRoute && veritlyToken && veritlyGateway
-      ? {
-          details: {
-            "veritly-tunnel-enabled": true,
-            "veritly-route": veritlyRoute,
-            "veritly-token": veritlyToken,
-            "veritly-gateway": veritlyGateway,
-          },
-        }
-      : {}),
-  };
+  const database = databaseReq.currentData
+    ? databaseReq.currentData
+    : {
+        id: undefined,
+        name: name ? name : undefined,
+        is_attached_dwh: false,
+        router_user_attribute: undefined,
+        engine: initial ? initial.engine : preselectedEngine,
+        ...(initial?.details ? { details: initial.details } : {}),
+      };
 
   const handleCancel = () => {
     if (file) {
