@@ -203,12 +203,7 @@ function Deployment({
         minute: "2-digit",
       })
     : "";
-  const open = () => {
-    const url = model.railwayLink();
-    if (url) {
-      window.open(url, "_blank", "noopener,noreferrer");
-    }
-  };
+  const project = state.projects.find((item) => item.id === state.project);
 
   return (
     <Stack gap="lg">
@@ -266,8 +261,31 @@ function Deployment({
                 }))}
                 onChange={(project) => project && model.select(project)}
               />
-              <Button variant="filled" disabled={!state.project} onClick={open}>
-                {t`Deploy on Railway`}
+              {project && (
+                <Select
+                  label={t`Railway environment`}
+                  placeholder={t`Select the environment containing the database`}
+                  value={state.environment || null}
+                  data={project.environments.map((environment) => ({
+                    value: environment.id,
+                    label: environment.name,
+                  }))}
+                  onChange={(environment) =>
+                    environment && model.selectEnvironment(environment)
+                  }
+                />
+              )}
+              <Button
+                variant="filled"
+                disabled={
+                  !state.project || !state.environment || state.deployed
+                }
+                loading={state.busy}
+                onClick={() => void model.provision()}
+              >
+                {state.deployed
+                  ? t`Deployment started`
+                  : t`Deploy into this project`}
               </Button>
             </Stack>
           )}

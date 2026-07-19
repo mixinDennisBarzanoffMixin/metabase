@@ -32,7 +32,6 @@ const Pair = z.object({
   expires: z.number().int().positive(),
   gateway: z.url(),
   image: Text,
-  railway: z.url(),
   template: Text,
 });
 const Route = z.object({
@@ -49,18 +48,34 @@ const Projects = z.object({
     z.object({
       id: Text,
       name: Text,
-      projects: z.array(z.object({ id: z.uuid(), name: Text })),
+      projects: z.array(
+        z.object({
+          id: z.uuid(),
+          name: Text,
+          environments: z.array(z.object({ id: z.uuid(), name: Text })),
+        }),
+      ),
     }),
   ),
 });
 const Login = z.object({ url: z.url() });
+const Deployment = z.object({
+  projectId: z.uuid(),
+  workflowId: Text.nullable(),
+});
 const Failure = z.object({ error: Text });
 const Context = z.object({ api: z.url(), source: z.uuid() });
 
 type Connector = z.infer<typeof Connector>;
 type Setup = z.infer<typeof Setup>;
 type Platform = "railway" | "docker";
-type Project = { id: string; name: string; workspace: string };
+type Environment = { id: string; name: string };
+type Project = {
+  id: string;
+  name: string;
+  workspace: string;
+  environments: readonly Environment[];
+};
 type Tunnel = {
   "veritly-tunnel-enabled": true;
   "veritly-route": string;
@@ -77,13 +92,14 @@ type TunnelState = {
   pairing: string;
   gateway: string;
   image: string;
-  railway: string;
   template: string;
   expires?: number;
   projects: readonly Project[];
   project: string;
+  environment: string;
   railwayConnected: boolean;
   railwayAccount?: string;
+  deployed: boolean;
   loading: boolean;
   busy: boolean;
   error: string;
@@ -98,6 +114,12 @@ type Port = {
   route(connector: string): Promise<z.infer<typeof Route>>;
   projects(): Promise<z.infer<typeof Projects>>;
   login(): Promise<string>;
+  provision(input: {
+    connector: string;
+    pairing: string;
+    project: string;
+    environment: string;
+  }): Promise<z.infer<typeof Deployment>>;
   watch(watch: Watch): () => void;
 };
 
@@ -186,6 +208,21 @@ class DatabaseTunnelGateway implements Port {
     ).url;
   }
 
+  async provision(input: {
+    connector: string;
+    pairing: string;
+    project: string;
+    environment: string;
+  }) {
+    return Deployment.parse(
+      await this.send("/connector/railway/deploy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+    );
+  }
+
   watch(watch: Watch) {
     const events = new this.events(
       this.url(
@@ -238,11 +275,12 @@ export class DatabaseTunnelModel {
     pairing: "",
     gateway: "",
     image: "",
-    railway: "",
     template: "",
     projects: [],
     project: "",
+    environment: "",
     railwayConnected: false,
+    deployed: false,
     loading: true,
     busy: false,
     error: "",
@@ -328,9 +366,9 @@ export class DatabaseTunnelModel {
       pairing: paired.pairing,
       gateway: paired.gateway,
       image: paired.image,
-      railway: paired.railway,
       template: paired.template,
       expires: paired.expires,
+      deployed: false,
       connectors: [
         ...this.state.connectors.filter(
           (item) => item.id !== paired.connector.id,
@@ -364,11 +402,20 @@ export class DatabaseTunnelModel {
     const project = projects.some((item) => item.id === this.state.project)
       ? this.state.project
       : "";
+    const selected = projects.find((item) => item.id === project);
+    const environment = selected?.environments.some(
+      (item) => item.id === this.state.environment,
+    )
+      ? this.state.environment
+      : selected?.environments.length === 1
+        ? selected.environments[0].id
+        : "";
     this.#set({
       railwayConnected: result.connected,
       railwayAccount: result.account?.email || result.account?.name,
       projects,
       project,
+      environment,
       busy: false,
     });
   }
@@ -408,20 +455,59 @@ export class DatabaseTunnelModel {
   }
 
   select(project: string) {
-    if (!this.state.projects.some((item) => item.id === project)) {
+    const selected = this.state.projects.find((item) => item.id === project);
+    if (!selected) {
       this.#set({ error: "Choose a Railway project." });
       return;
     }
-    this.#set({ project, error: "" });
+    this.#set({
+      project,
+      environment:
+        selected.environments.length === 1 ? selected.environments[0].id : "",
+      error: "",
+    });
   }
 
-  railwayLink() {
-    if (!this.state.project) {
+  selectEnvironment(environment: string) {
+    const project = this.state.projects.find(
+      (item) => item.id === this.state.project,
+    );
+    if (!project?.environments.some((item) => item.id === environment)) {
+      this.#set({ error: "Choose a Railway environment." });
       return;
     }
-    const url = new URL(this.state.railway);
-    url.searchParams.set("projectId", this.state.project);
-    return url.toString();
+    this.#set({ environment, error: "" });
+  }
+
+  async provision() {
+    if (
+      !this.state.selected ||
+      !this.state.pairing ||
+      !this.state.project ||
+      !this.state.environment
+    ) {
+      this.#set({ error: "Choose a Railway project and environment." });
+      return;
+    }
+    this.#set({ busy: true, error: "" });
+    const deployed = await this.api
+      .provision({
+        connector: this.state.selected,
+        pairing: this.state.pairing,
+        project: this.state.project,
+        environment: this.state.environment,
+      })
+      .then(
+        () => true,
+        (cause: unknown) => {
+          this.#fail(cause);
+          return false;
+        },
+      );
+    if (!deployed) {
+      return;
+    }
+    this.#set({ busy: false, deployed: true });
   }
 
   command() {
@@ -436,6 +522,7 @@ export class DatabaseTunnelModel {
 docker volume create veritly-connector-state
 docker run -d --name veritly-connector \\
   --restart unless-stopped \\
+  --user 65532:65532 \\
   --network <database-network> \\
   --read-only --cap-drop ALL \\
   -v veritly-connector-state:/var/lib/veritly \\
