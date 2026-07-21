@@ -75,6 +75,7 @@ export const DatabaseDetailField = ({
     case "section":
       return <DatabaseSectionField {...props} />;
     case "hidden":
+    case "hidden-string":
       return null;
     default:
       return <FormTextInput {...props} {...getInputProps(field)} nullable />;

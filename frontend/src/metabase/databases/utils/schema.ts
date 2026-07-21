@@ -129,6 +129,7 @@ const getFieldSchema = (field: EngineField) => {
         .default(field.default != null ? Boolean(field.default) : false)
         .test((value, context) => isFieldValid(field, value, context));
     case "select":
+    case "hidden-string":
       return Yup.string()
         .nullable()
         .default(field.default != null ? String(field.default) : null)

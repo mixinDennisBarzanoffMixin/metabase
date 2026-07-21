@@ -145,7 +145,8 @@ export type EngineFieldType =
   | "textFile"
   | "info"
   | "section"
-  | "hidden";
+  | "hidden"
+  | "hidden-string";
 
 export type EngineFieldTreatType = "base64";
 

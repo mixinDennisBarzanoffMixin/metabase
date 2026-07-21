@@ -81,15 +81,15 @@
     :default      false}
    {:name         "veritly-route"
     :display-name (deferred-tru "Veritly route")
-    :type         :hidden
+    :type         :hidden-string
     :visible-if   {"veritly-tunnel-enabled" true}}
    {:name         "veritly-token"
     :display-name (deferred-tru "Veritly route token")
-    :type         :hidden
+    :type         :hidden-string
     :visible-if   {"veritly-tunnel-enabled" true}}
    {:name         "veritly-gateway"
     :display-name (deferred-tru "Veritly gateway")
-    :type         :hidden
+    :type         :hidden-string
     :visible-if   {"veritly-tunnel-enabled" true}}
    {:name         "tunnel-enabled"
     :display-name (deferred-tru "Use an SSH tunnel")
