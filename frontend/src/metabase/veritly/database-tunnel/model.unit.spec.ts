@@ -8,8 +8,6 @@ import {
 
 const source = "019f7aa8-72a1-7c53-8c3e-88a5ff7b733d";
 const connector = "019f7aa8-83c2-7a31-b032-b3d47e4cb559";
-const railway = "019f7aa8-8fd1-72cc-b34c-8b20620a2c18";
-const environment = "019f7aa8-97a2-70b5-8e97-d645fbd3e384";
 
 const waiting = {
   id: connector,
@@ -33,13 +31,13 @@ describe("DatabaseTunnelPolicy", () => {
         },
       ],
     } as Engine;
-    const snowflake = {
-      "driver-name": "Snowflake",
-      "details-fields": [{ name: "account", type: "string" }],
+    const bigquery = {
+      "driver-name": "BigQuery",
+      "details-fields": [{ name: "project-id", type: "string" }],
     } as Engine;
 
     expect(policy.requires(postgres)).toBe(true);
-    expect(policy.requires(snowflake)).toBe(false);
+    expect(policy.requires(bigquery)).toBe(false);
   });
 });
 
@@ -64,7 +62,6 @@ describe("DatabaseTunnelModel", () => {
         expires: Date.now() + 60_000,
         gateway: "wss://connect.veritly.co.uk/agent",
         image: "ghcr.io/veritly/connector:latest",
-        template: "veritly-connector-template",
       }),
       route: async (id: string) => {
         routes.push(id);
@@ -74,24 +71,6 @@ describe("DatabaseTunnelModel", () => {
           gateway: "wss://connect.veritly.co.uk/client",
         };
       },
-      projects: async () => ({
-        connected: true,
-        workspaces: [
-          {
-            id: "workspace",
-            name: "Veritly",
-            projects: [
-              {
-                id: railway,
-                name: "Production",
-                environments: [{ id: environment, name: "production" }],
-              },
-            ],
-          },
-        ],
-      }),
-      login: async () => "https://railway.com/oauth/authorize",
-      provision: async () => ({ projectId: railway, workflowId: "workflow" }),
       watch: (
         watch: (setup: {
           source: { id: string; connector_id?: string };
@@ -152,9 +131,6 @@ describe("DatabaseTunnelModel", () => {
           gateway: "wss://connect.veritly.co.uk/client",
         };
       },
-      projects: async () => ({ connected: false, workspaces: [] }),
-      login: async () => "https://railway.com/oauth/authorize",
-      provision: async () => ({ projectId: railway, workflowId: "workflow" }),
       watch: (
         watch: (setup: {
           source: { id: string; connector_id?: string };

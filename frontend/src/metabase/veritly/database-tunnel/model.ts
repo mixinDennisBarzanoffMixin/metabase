@@ -32,50 +32,18 @@ const Pair = z.object({
   expires: z.number().int().positive(),
   gateway: z.url(),
   image: Text,
-  template: Text,
 });
 const Route = z.object({
   source: Source,
   token: Text,
   gateway: z.url(),
 });
-const Projects = z.object({
-  connected: z.boolean(),
-  account: z
-    .object({ sub: Text, email: z.email().optional(), name: Text.optional() })
-    .optional(),
-  workspaces: z.array(
-    z.object({
-      id: Text,
-      name: Text,
-      projects: z.array(
-        z.object({
-          id: z.uuid(),
-          name: Text,
-          environments: z.array(z.object({ id: z.uuid(), name: Text })),
-        }),
-      ),
-    }),
-  ),
-});
-const Login = z.object({ url: z.url() });
-const Deployment = z.object({
-  projectId: z.uuid(),
-  workflowId: Text.nullable(),
-});
 const Failure = z.object({ error: Text });
 const Context = z.object({ api: z.url(), source: z.uuid() });
 
 type Connector = z.infer<typeof Connector>;
 type Setup = z.infer<typeof Setup>;
-type Platform = "railway" | "docker";
-type Environment = { id: string; name: string };
-type Project = {
-  id: string;
-  name: string;
-  workspace: string;
-  environments: readonly Environment[];
-};
+type Platform = "docker";
 type Tunnel = {
   "veritly-tunnel-enabled": true;
   "veritly-route": string;
@@ -92,14 +60,7 @@ type TunnelState = {
   pairing: string;
   gateway: string;
   image: string;
-  template: string;
   expires?: number;
-  projects: readonly Project[];
-  project: string;
-  environment: string;
-  railwayConnected: boolean;
-  railwayAccount?: string;
-  deployed: boolean;
   loading: boolean;
   busy: boolean;
   error: string;
@@ -112,14 +73,6 @@ type Port = {
   setup(): Promise<Setup>;
   pair(platform: Platform, name: string): Promise<z.infer<typeof Pair>>;
   route(connector: string): Promise<z.infer<typeof Route>>;
-  projects(): Promise<z.infer<typeof Projects>>;
-  login(): Promise<string>;
-  provision(input: {
-    connector: string;
-    pairing: string;
-    project: string;
-    environment: string;
-  }): Promise<z.infer<typeof Deployment>>;
   watch(watch: Watch): () => void;
 };
 
@@ -198,31 +151,6 @@ class DatabaseTunnelGateway implements Port {
     );
   }
 
-  async projects() {
-    return Projects.parse(await this.send("/connector/railway/projects"));
-  }
-
-  async login() {
-    return Login.parse(
-      await this.send("/connector/railway/login", { method: "POST" }),
-    ).url;
-  }
-
-  async provision(input: {
-    connector: string;
-    pairing: string;
-    project: string;
-    environment: string;
-  }) {
-    return Deployment.parse(
-      await this.send("/connector/railway/deploy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      }),
-    );
-  }
-
   watch(watch: Watch) {
     const events = new this.events(
       this.url(
@@ -275,19 +203,11 @@ export class DatabaseTunnelModel {
     pairing: "",
     gateway: "",
     image: "",
-    template: "",
-    projects: [],
-    project: "",
-    environment: "",
-    railwayConnected: false,
-    deployed: false,
     loading: true,
     busy: false,
     error: "",
   });
   #stop?: () => void;
-  #popup?: Window;
-  #timer?: ReturnType<typeof setInterval>;
   #retry?: ReturnType<typeof setTimeout>;
   #routing = false;
   #closed = false;
@@ -366,9 +286,7 @@ export class DatabaseTunnelModel {
       pairing: paired.pairing,
       gateway: paired.gateway,
       image: paired.image,
-      template: paired.template,
       expires: paired.expires,
-      deployed: false,
       connectors: [
         ...this.state.connectors.filter(
           (item) => item.id !== paired.connector.id,
@@ -377,147 +295,9 @@ export class DatabaseTunnelModel {
       ],
       busy: false,
     });
-    if (platform === "railway") {
-      await this.loadRailway();
-    }
-  }
-
-  async loadRailway() {
-    const result = await this.api.projects().then(
-      (value) => value,
-      (cause: unknown) => {
-        this.#fail(cause);
-        return undefined;
-      },
-    );
-    if (!result) {
-      return;
-    }
-    const projects = result.workspaces.flatMap((workspace) =>
-      workspace.projects.map((project) => ({
-        ...project,
-        workspace: workspace.name,
-      })),
-    );
-    const project = projects.some((item) => item.id === this.state.project)
-      ? this.state.project
-      : "";
-    const selected = projects.find((item) => item.id === project);
-    const environment = selected?.environments.some(
-      (item) => item.id === this.state.environment,
-    )
-      ? this.state.environment
-      : selected?.environments.length === 1
-        ? selected.environments[0].id
-        : "";
-    this.#set({
-      railwayConnected: result.connected,
-      railwayAccount: result.account?.email || result.account?.name,
-      projects,
-      project,
-      environment,
-      busy: false,
-    });
-  }
-
-  async login() {
-    this.#set({ busy: true, error: "" });
-    const url = await this.api.login().then(
-      (value) => value,
-      (cause: unknown) => {
-        this.#fail(cause);
-        return undefined;
-      },
-    );
-    if (!url) {
-      return;
-    }
-    const popup = window.open(
-      url,
-      "veritly-railway",
-      "popup,width=720,height=800",
-    );
-    if (!popup) {
-      this.#set({
-        busy: false,
-        error: "Railway sign-in was blocked by the browser.",
-      });
-      return;
-    }
-    this.#popup = popup;
-    this.#timer = setInterval(() => {
-      if (!this.#popup?.closed) {
-        return;
-      }
-      this.#stopPopup();
-      void this.loadRailway();
-    }, 500);
-  }
-
-  select(project: string) {
-    const selected = this.state.projects.find((item) => item.id === project);
-    if (!selected) {
-      this.#set({ error: "Choose a Railway project." });
-      return;
-    }
-    this.#set({
-      project,
-      environment:
-        selected.environments.length === 1 ? selected.environments[0].id : "",
-      error: "",
-    });
-  }
-
-  selectEnvironment(environment: string) {
-    const project = this.state.projects.find(
-      (item) => item.id === this.state.project,
-    );
-    if (!project?.environments.some((item) => item.id === environment)) {
-      this.#set({ error: "Choose a Railway environment." });
-      return;
-    }
-    this.#set({ environment, error: "" });
-  }
-
-  async provision() {
-    if (
-      !this.state.selected ||
-      !this.state.pairing ||
-      !this.state.project ||
-      !this.state.environment
-    ) {
-      this.#set({ error: "Choose a Railway project and environment." });
-      return;
-    }
-    this.#set({ busy: true, error: "" });
-    const deployed = await this.api
-      .provision({
-        connector: this.state.selected,
-        pairing: this.state.pairing,
-        project: this.state.project,
-        environment: this.state.environment,
-      })
-      .then(
-        () => true,
-        (cause: unknown) => {
-          this.#fail(cause);
-          return false;
-        },
-      );
-    if (!deployed) {
-      return;
-    }
-    this.#set({ busy: false, deployed: true });
   }
 
   command() {
-    if (this.state.platform === "railway") {
-      return `railway deploy -t ${this.state.template} \\
-  -v 'VERITLY_GATEWAY_URL=${this.state.gateway}' \\
-  -v 'VERITLY_PAIRING_CODE=${this.state.pairing}' \\
-  -v 'VERITLY_STATUS_ADDR=:8081' \\
-  -v 'PORT=8081'`;
-    }
     return `docker pull ${this.state.image}
 docker volume create veritly-connector-state
 docker run -d --name veritly-connector \\
@@ -539,7 +319,6 @@ docker run -d --name veritly-connector \\
       clearTimeout(this.#retry);
     }
     this.#retry = undefined;
-    this.#stopPopup();
     this.#state.complete();
   }
 
@@ -624,14 +403,6 @@ docker run -d --name veritly-connector \\
       busy: false,
       error: cause instanceof Error ? cause.message : String(cause),
     });
-  }
-
-  #stopPopup() {
-    if (this.#timer) {
-      clearInterval(this.#timer);
-    }
-    this.#timer = undefined;
-    this.#popup = undefined;
   }
 
   #later(run: () => void) {

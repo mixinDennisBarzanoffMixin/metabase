@@ -12,7 +12,6 @@ import {
   Icon,
   Loader,
   Paper,
-  Select,
   Stack,
   Text,
   Title,
@@ -122,15 +121,6 @@ export function DatabaseTunnel({ name, onBack, onReady }: DatabaseTunnelProps) {
             variant="default"
             justify="space-between"
             rightSection={<Icon name="chevronright" />}
-            onClick={() => void model.deploy("railway")}
-            disabled={state.busy}
-          >
-            {t`Railway`}
-          </Button>
-          <Button
-            variant="default"
-            justify="space-between"
-            rightSection={<Icon name="chevronright" />}
             onClick={() => void model.deploy("docker")}
             disabled={state.busy}
           >
@@ -203,100 +193,18 @@ function Deployment({
         minute: "2-digit",
       })
     : "";
-  const project = state.projects.find((item) => item.id === state.project);
-
   return (
     <Stack gap="lg">
       <Box>
-        <Title order={3} fz="h4">
-          {state.platform === "railway"
-            ? t`Deploy on Railway`
-            : t`Run on your Docker server`}
-        </Title>
+        <Title order={3} fz="h4">{t`Run on your Docker server`}</Title>
         <Text c="text-secondary" mt="xs">
           {t`This one-time setup code expires at ${expires}. This page will continue automatically when the connector comes online.`}
         </Text>
       </Box>
 
-      {state.platform === "railway" && (
-        <Paper withBorder p="md">
-          {!state.railwayConnected ? (
-            <Flex align="center" justify="space-between" gap="md" wrap="wrap">
-              <Box>
-                <Text fw="bold">{t`Connect Railway`}</Text>
-                <Text c="text-secondary" fz="sm">
-                  {t`Grant access, then choose the project containing the database.`}
-                </Text>
-              </Box>
-              <Button
-                variant="filled"
-                loading={state.busy}
-                onClick={() => void model.login()}
-              >
-                {t`Sign in with Railway`}
-              </Button>
-            </Flex>
-          ) : (
-            <Stack gap="md">
-              <Flex justify="space-between" align="center" gap="md">
-                <Box>
-                  <Text fw="bold">{t`Railway project`}</Text>
-                  {state.railwayAccount && (
-                    <Text c="text-secondary" fz="sm">
-                      {state.railwayAccount}
-                    </Text>
-                  )}
-                </Box>
-                <Button variant="subtle" onClick={() => void model.login()}>
-                  {t`Change access`}
-                </Button>
-              </Flex>
-              <Select
-                label={t`Railway project`}
-                placeholder={t`Select the project containing the database`}
-                value={state.project || null}
-                data={state.projects.map((project) => ({
-                  value: project.id,
-                  label: `${project.workspace} / ${project.name}`,
-                }))}
-                onChange={(project) => project && model.select(project)}
-              />
-              {project && (
-                <Select
-                  label={t`Railway environment`}
-                  placeholder={t`Select the environment containing the database`}
-                  value={state.environment || null}
-                  data={project.environments.map((environment) => ({
-                    value: environment.id,
-                    label: environment.name,
-                  }))}
-                  onChange={(environment) =>
-                    environment && model.selectEnvironment(environment)
-                  }
-                />
-              )}
-              <Button
-                variant="filled"
-                disabled={
-                  !state.project || !state.environment || state.deployed
-                }
-                loading={state.busy}
-                onClick={() => void model.provision()}
-              >
-                {state.deployed
-                  ? t`Deployment started`
-                  : t`Deploy into this project`}
-              </Button>
-            </Stack>
-          )}
-        </Paper>
-      )}
-
-      {state.platform === "docker" && (
-        <Text c="text-secondary">
-          {t`Replace <database-network> with the Docker network used by the database, then run this on that server.`}
-        </Text>
-      )}
+      <Text c="text-secondary">
+        {t`Replace <database-network> with the Docker network used by the database, then run this on that server.`}
+      </Text>
 
       <Paper withBorder p="md">
         <Flex justify="space-between" align="start" gap="md">
