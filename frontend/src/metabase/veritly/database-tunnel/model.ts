@@ -39,7 +39,10 @@ const Route = z.object({
   gateway: z.url(),
 });
 const Failure = z.object({ error: Text });
-const Context = z.object({ api: z.url(), source: z.uuid() });
+const Context = z.object({
+  api: z.url().refine((url) => !url.endsWith("/")),
+  source: z.uuid(),
+});
 
 type Connector = z.infer<typeof Connector>;
 type Setup = z.infer<typeof Setup>;
@@ -191,7 +194,7 @@ class DatabaseTunnelGateway implements Port {
   }
 
   private url(path: string) {
-    return `${this.cfg.api.replace(/\/+$/, "")}${path}`;
+    return `${this.cfg.api}${path}`;
   }
 }
 
