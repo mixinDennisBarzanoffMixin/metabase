@@ -38,6 +38,7 @@
                      "MB_EDITION" mb-edition
                      "MB_CLJS_DEVTOOLS_URL" (env/env :mb-cljs-devtools-url)
                      "FRONTEND_PUBLIC_UNIVER_BACKEND_URL" (env/env :frontend-public-univer-backend-url)
+                     "FRONTEND_PUBLIC_ONLYOFFICE_BACKEND_URL" (env/env :frontend-public-onlyoffice-backend-url)
                      "EMIT_BUNDLE_STATS" (or (env/env :emit-bundle-stats) "false")}}
               "bun" "run" "build-release"))
       (u/step "Build static viz"

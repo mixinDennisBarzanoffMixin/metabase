@@ -19,9 +19,9 @@ import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
 import { useGetIcon } from "metabase/hooks/use-icon";
 import { PLUGIN_MODERATION } from "metabase/plugins";
 import { useDispatch, useSelector } from "metabase/redux";
-import { listUniverCharts, type UniverChartRef } from "metabase/veritly/univer";
 import { ActionIcon, Box, Flex, Icon, Tooltip } from "metabase/ui";
 import { DEFAULT_SEARCH_LIMIT } from "metabase/utils/constants";
+import { type VeritlyChartRef, listCharts } from "metabase/veritly/charts";
 import { VisualizerModal } from "metabase/visualizer/components/VisualizerModal";
 import type {
   CardId,
@@ -37,7 +37,7 @@ interface QuestionListProps {
   searchText: string;
   collectionId: CollectionId;
   onSelect: BaseSelectListItemProps["onSelect"];
-  onSelectUniverChart?: (chart: UniverChartRef) => void;
+  onSelectVeritlyChart?: (chart: VeritlyChartRef) => void;
   hasCollections: boolean;
   showOnlyPublicCollections: boolean;
 }
@@ -46,7 +46,7 @@ export function QuestionList({
   searchText,
   collectionId,
   onSelect,
-  onSelectUniverChart,
+  onSelectVeritlyChart,
   hasCollections,
   showOnlyPublicCollections,
 }: QuestionListProps) {
@@ -60,19 +60,23 @@ export function QuestionList({
 
   const selectedTabId = useSelector(getSelectedTabId);
   const dashboardId = useSelector(getDashboardId);
-  const [charts, setCharts] = useState<UniverChartRef[]>([]);
+  const [charts, setCharts] = useState<VeritlyChartRef[]>([]);
 
   useEffect(() => {
-    if (!onSelectUniverChart) return;
+    if (!onSelectVeritlyChart) {
+      return;
+    }
 
     const ctrl = new AbortController();
-    listUniverCharts(ctrl.signal)
+    listCharts(ctrl.signal)
       .then(setCharts)
       .catch(() => {
-        if (!ctrl.signal.aborted) setCharts([]);
+        if (!ctrl.signal.aborted) {
+          setCharts([]);
+        }
       });
     return () => ctrl.abort();
-  }, [onSelectUniverChart]);
+  }, [onSelectVeritlyChart]);
 
   useEffect(() => {
     setQueryOffset(0);
@@ -134,7 +138,7 @@ export function QuestionList({
   const dispatch = useDispatch();
   const list: (SearchResult | CollectionItem)[] = data?.data ?? [];
   const query = trimmedSearchText.toLowerCase();
-  const visible = onSelectUniverChart
+  const visible = onSelectVeritlyChart
     ? charts.filter((chart) =>
         query.length === 0 ? true : chart.name.toLowerCase().includes(query),
       )
@@ -166,12 +170,12 @@ export function QuestionList({
       <SelectList>
         {visible.map((chart) => (
           <Flex
-            key={`${chart.unitId}:${chart.chartId}`}
+            key={`${chart.provider}:${chart.fileId}:${chart.chartId}`}
             className={S.QuestionListItemRoot}
             gap="2px"
           >
             <SelectList.Item
-              id={`univer:${chart.unitId}:${chart.chartId}`}
+              id={`${chart.provider}:${chart.fileId}:${chart.chartId}`}
               classNames={{
                 root: S.QuestionListItemRoot,
                 label: S.QuestionListItemLabel,
@@ -183,7 +187,7 @@ export function QuestionList({
                 size: 16,
                 className: S.QuestionListItemIcon,
               }}
-              onSelect={() => onSelectUniverChart?.(chart)}
+              onSelect={() => onSelectVeritlyChart?.(chart)}
             />
           </Flex>
         ))}

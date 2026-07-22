@@ -1,10 +1,10 @@
 import { useCallback } from "react";
 
 import { Sidebar } from "metabase/common/components/Sidebar";
-import { addUniverChartDashCardToDashboard } from "metabase/dashboard/actions/cards-typed";
+import { addVeritlyChartDashCardToDashboard } from "metabase/dashboard/actions/cards-typed";
 import { useDashboardContext } from "metabase/dashboard/context";
 import { useDispatch } from "metabase/redux";
-import type { UniverChartRef } from "metabase/veritly/univer";
+import type { VeritlyChartRef } from "metabase/veritly/charts";
 import type { CardId } from "metabase-types/api";
 
 import { QuestionPicker } from "../QuestionPicker";
@@ -27,11 +27,13 @@ export function AddCardSidebar() {
     [addCardToDashboard, dashboard, selectedTabId],
   );
 
-  const handleAddUniverChart = useCallback(
-    (chart: UniverChartRef) => {
-      if (!dashboard) return;
+  const handleAddChart = useCallback(
+    (chart: VeritlyChartRef) => {
+      if (!dashboard) {
+        return;
+      }
       dispatch(
-        addUniverChartDashCardToDashboard({
+        addVeritlyChartDashCardToDashboard({
           dashId: dashboard.id,
           chart,
           tabId: selectedTabId,
@@ -45,7 +47,7 @@ export function AddCardSidebar() {
     <Sidebar data-testid="add-card-sidebar">
       <QuestionPicker
         onSelect={handleAddCard}
-        onSelectUniverChart={handleAddUniverChart}
+        onSelectVeritlyChart={handleAddChart}
       />
     </Sidebar>
   );

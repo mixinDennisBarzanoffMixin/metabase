@@ -500,7 +500,7 @@
               (:action_id dashboard-card)
               nil
 
-              (some-> dashboard-card :visualization_settings :virtual_card :display #{"iframe" "univerChart"})
+              (some-> dashboard-card :visualization_settings :virtual_card :display #{"iframe" "veritlyChart"})
               dashboard-card
 
               ;; text cards need no manipulation

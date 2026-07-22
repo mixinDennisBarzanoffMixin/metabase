@@ -46,7 +46,7 @@
 (defn virtual-card-of-type?
   "Check if dashcard is a virtual with type `ttype`, if `true` returns the dashcard, else returns `nil`.
 
-  There are currently 6 types of virtual card: \"text\", \"action\", \"link\", \"placeholder\", \"heading\", and \"univerChart\"."
+  There are currently 6 types of virtual card: \"text\", \"action\", \"link\", \"placeholder\", \"heading\", and \"veritlyChart\"."
   [dashcard ttype]
   (when (= ttype (get-in dashcard [:visualization_settings :virtual_card :display]))
     dashcard))
@@ -255,7 +255,7 @@
     (virtual-card-of-type? dashcard "iframe")
     nil
 
-    (virtual-card-of-type? dashcard "univerChart")
+    (virtual-card-of-type? dashcard "veritlyChart")
     nil
 
     (virtual-card-of-type? dashcard "action")

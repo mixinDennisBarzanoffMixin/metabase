@@ -203,10 +203,10 @@
     (POST "/api/veritly/question" request
       (api/check-403 api/*current-user-id*)
       {:status 200 :body (veritly.files/create-question! (get-in request [:body :name]))})
-    (POST "/api/veritly/dashboard/:dashboard-id/univer-chart" [dashboard-id :as request]
+    (POST "/api/veritly/dashboard/:dashboard-id/chart" [dashboard-id :as request]
       (api/check-403 api/*current-user-id*)
       {:status 200
-       :body   (veritly.files/add-univer-chart! (Long/parseLong dashboard-id) (:body request))})
+       :body   (veritly.files/add-chart! (Long/parseLong dashboard-id) (:body request))})
     (context "/api" [] (api-handler api-routes))
     (context "/app" [] static-files-handler)
     (GET "*" [] (project-index project-id)))

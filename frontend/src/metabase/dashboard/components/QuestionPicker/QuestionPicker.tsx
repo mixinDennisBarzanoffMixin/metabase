@@ -17,7 +17,6 @@ import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
 import { useGetIcon } from "metabase/hooks/use-icon";
 import { PLUGIN_COLLECTIONS } from "metabase/plugins";
 import { useDispatch, useSelector } from "metabase/redux";
-import type { UniverChartRef } from "metabase/veritly/univer";
 import {
   canUserCreateNativeQueries,
   canUserCreateQueries,
@@ -25,6 +24,7 @@ import {
 } from "metabase/selectors/user";
 import { Button, Flex, Icon } from "metabase/ui";
 import { SEARCH_DEBOUNCE_DURATION } from "metabase/utils/constants";
+import type { VeritlyChartRef } from "metabase/veritly/charts";
 import type { Collection, CollectionId } from "metabase-types/api";
 
 import { QuestionList } from "./QuestionList";
@@ -38,12 +38,12 @@ import {
 
 interface QuestionPickerProps {
   onSelect: BaseSelectListItemProps["onSelect"];
-  onSelectUniverChart?: (chart: UniverChartRef) => void;
+  onSelectVeritlyChart?: (chart: VeritlyChartRef) => void;
 }
 
 export function QuestionPicker({
   onSelect,
-  onSelectUniverChart,
+  onSelectVeritlyChart,
 }: QuestionPickerProps) {
   const { data: allCollectionsList = [] } = useListCollectionsQuery();
   const userPersonalCollectionId = useSelector(getUserPersonalCollectionId);
@@ -176,7 +176,7 @@ export function QuestionPicker({
           searchText={debouncedSearchText}
           collectionId={currentCollectionId}
           onSelect={onSelect}
-          onSelectUniverChart={onSelectUniverChart}
+          onSelectVeritlyChart={onSelectVeritlyChart}
           showOnlyPublicCollections={showOnlyPublicCollections}
         />
       )}

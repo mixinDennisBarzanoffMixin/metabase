@@ -8,7 +8,6 @@ import { loadMetadataForCard } from "metabase/questions/actions";
 import { createThunkAction } from "metabase/redux";
 import type { Dispatch, GetState } from "metabase/redux/store";
 import { addUndo } from "metabase/redux/undo";
-import type { UniverChartRef } from "metabase/veritly/univer";
 import {
   isQuestionDashCard,
   isVirtualDashCard,
@@ -19,6 +18,7 @@ import {
   getPositionForNewDashCard,
 } from "metabase/utils/dashboard_grid";
 import { checkNotNull } from "metabase/utils/types";
+import type { VeritlyChartRef } from "metabase/veritly/charts";
 import { getDefaultSize } from "metabase/visualizations";
 import {
   getCardIdsFromColumnValueMappings,
@@ -243,19 +243,19 @@ export const addLinkDashCardToDashboard =
     dispatch(addDashCardToDashboard({ dashId, tabId, dashcardOverrides }));
   };
 
-export type AddUniverChartOpts = NewDashCardOpts & {
-  chart: UniverChartRef;
+export type AddVeritlyChartOpts = NewDashCardOpts & {
+  chart: VeritlyChartRef;
 };
 
-export const addUniverChartDashCardToDashboard =
-  ({ dashId, tabId, chart }: AddUniverChartOpts) =>
+export const addVeritlyChartDashCardToDashboard =
+  ({ dashId, tabId, chart }: AddVeritlyChartOpts) =>
   (dispatch: Dispatch) => {
-    const card = createVirtualCard("univerChart");
+    const card = createVirtualCard("veritlyChart");
     const dashcardOverrides = {
       card,
       visualization_settings: {
         virtual_card: card,
-        univerChart: chart,
+        veritlyChart: chart,
       },
     };
     dispatch(addDashCardToDashboard({ dashId, tabId, dashcardOverrides }));

@@ -5,7 +5,7 @@ export const virtualCardDisplayTypes = [
   "placeholder",
   "text",
   "iframe",
-  "univerChart",
+  "veritlyChart",
 ] as const;
 
 export type VirtualCardDisplay = (typeof virtualCardDisplayTypes)[number];

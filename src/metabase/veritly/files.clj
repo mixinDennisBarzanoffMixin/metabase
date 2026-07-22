@@ -49,30 +49,31 @@
   [chart key]
   (let [value (get chart key)]
     (when-not (and (string? value) (seq value))
-      (throw (ex-info (str "Univer chart " (name key) " missing.") {:status-code 400})))
+      (throw (ex-info (str "Live chart " (name key) " missing.") {:status-code 400})))
     value))
 
 (defn- chart-ref
   [chart]
   (when-not (map? chart)
-    (throw (ex-info "Univer chart reference missing." {:status-code 400})))
-  (let [revision  (:revision chart)
-        chart-type (:chartType chart)
-        unit-name (required-text chart :unitName)
-        sheet-name (required-text chart :sheetName)]
+    (throw (ex-info "Live chart reference missing." {:status-code 400})))
+  (let [revision (:revision chart)
+        provider (required-text chart :provider)]
     (when-not (number? revision)
-      (throw (ex-info "Univer chart revision missing." {:status-code 400})))
-    (when-not (number? chart-type)
-      (throw (ex-info "Univer chart chartType missing." {:status-code 400})))
-    {:unitId    (required-text chart :unitId)
-     :unitName  unit-name
-     :sheetId   (required-text chart :sheetId)
-     :sheetName sheet-name
-     :chartId   (required-text chart :id)
-     :revision  revision
-     :name      (str unit-name " / " sheet-name " / Chart " chart-type)}))
+      (throw (ex-info "Live chart revision missing." {:status-code 400})))
+    (when-not (#{"univer" "onlyoffice"} provider)
+      (throw (ex-info "Live chart provider is unsupported." {:status-code 400})))
+    (merge
+     {:provider   provider
+      :fileId     (required-text chart :fileId)
+      :fileName   (required-text chart :fileName)
+      :chartId    (required-text chart :chartId)
+      :sourceId   (required-text chart :sourceId)
+      :sourceName (required-text chart :sourceName)
+      :revision   revision
+      :name       (required-text chart :name)}
+     (select-keys chart [:unitId :unitName :sheetId :sheetName]))))
 
-(defn add-univer-chart!
+(defn add-chart!
   [dashboard-id chart]
   (projects/check-dashboard! dashboard-id)
   (let [dash     (api/write-check :model/Dashboard dashboard-id)
@@ -80,7 +81,7 @@
                             :dashboard_id dashboard-id)
         position (autoplace/get-position-for-new-dashcard placed 6 5 autoplace/default-grid-width)
         card     {:name                   nil
-                  :display                "univerChart"
+                  :display                "veritlyChart"
                   :visualization_settings {}
                   :archived               false}
         created  (first (dashboard/add-dashcards!
@@ -88,10 +89,10 @@
                          [(merge position
                                  {:card_id                nil
                                   :visualization_settings {:virtual_card card
-                                                           :univerChart  (chart-ref chart)}})]))]
+                                                           :veritlyChart (chart-ref chart)}})]))]
     (events/publish-event! :event/dashboard-add-cards
                            {:object dash :user-id api/*current-user-id* :dashcards [created]})
-    {:kind        "univerChart"
+    {:kind        "veritlyChart"
      :dashboardId (str dashboard-id)
      :dashcardId  (str (:id created))
-     :chart       (get-in created [:visualization_settings :univerChart])}))
+     :chart       (get-in created [:visualization_settings :veritlyChart])}))

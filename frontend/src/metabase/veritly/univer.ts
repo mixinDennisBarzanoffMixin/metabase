@@ -1,6 +1,8 @@
+import type { ChartRef } from "@veritly/chart";
 import type { ChartSource } from "@veritly/univer-chart";
 
-export type UniverChartRef = {
+export type UniverChartRef = ChartRef & {
+  provider: "univer";
   unitId: string;
   unitName: string;
   sheetId: string;
@@ -20,12 +22,16 @@ function plain(val: unknown): val is Record<string, unknown> {
 }
 
 function text(val: unknown, key: string) {
-  if (typeof val === "string" && val.length > 0) return val;
+  if (typeof val === "string" && val.length > 0) {
+    return val;
+  }
   throw new Error(`Univer chart ${key} missing`);
 }
 
 function num(val: unknown, key: string) {
-  if (typeof val === "number" && Number.isFinite(val)) return val;
+  if (typeof val === "number" && Number.isFinite(val)) {
+    return val;
+  }
   throw new Error(`Univer chart ${key} missing`);
 }
 
@@ -39,7 +45,9 @@ function base() {
 
 function project() {
   const hit = window.location.pathname.match(/^\/project\/([^/]+)/);
-  if (hit) return decodeURIComponent(hit[1]);
+  if (hit) {
+    return decodeURIComponent(hit[1]);
+  }
   throw new Error("Project id missing from URL");
 }
 
@@ -58,12 +66,16 @@ async function get(path: string, signal?: AbortSignal): Promise<Body> {
   }
 
   const body = (await res.json()) as unknown;
-  if (plain(body)) return body;
+  if (plain(body)) {
+    return body;
+  }
   throw new Error("Univer response is not an object");
 }
 
 function chart(raw: unknown): UniverChartRef {
-  if (!plain(raw)) throw new Error("Univer chart is not an object");
+  if (!plain(raw)) {
+    throw new Error("Univer chart is not an object");
+  }
 
   const id = text(raw.id, "id");
   const unit = text(raw.unitId, "unitId");
@@ -73,11 +85,16 @@ function chart(raw: unknown): UniverChartRef {
   const typ = num(raw.chartType, "chartType");
 
   return {
+    provider: "univer",
+    fileId: unit,
+    fileName: book,
+    chartId: id,
+    sourceId: sheet,
+    sourceName: tab,
     unitId: unit,
     unitName: book,
     sheetId: sheet,
     sheetName: tab,
-    chartId: id,
     revision: num(raw.revision, "revision"),
     name: `${book} / ${tab} / Chart ${typ}`,
   };
@@ -85,7 +102,9 @@ function chart(raw: unknown): UniverChartRef {
 
 export async function listUniverCharts(signal?: AbortSignal) {
   const body = await get("/universer-api/veritly/charts", signal);
-  if (Array.isArray(body.charts)) return body.charts.map(chart);
+  if (Array.isArray(body.charts)) {
+    return body.charts.map(chart);
+  }
   throw new Error("Univer charts response missing charts");
 }
 
@@ -99,6 +118,8 @@ export async function getUniverChartSource(
     `/universer-api/veritly/units/${unit}/charts/${id}/source`,
     signal,
   );
-  if (plain(body.source)) return body.source as ChartSource;
+  if (plain(body.source)) {
+    return body.source as ChartSource;
+  }
   throw new Error("Univer chart response missing source");
 }

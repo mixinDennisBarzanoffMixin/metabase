@@ -44,6 +44,7 @@ const DEV_ORIGIN = (
   process.env.MB_FRONTEND_DEV_ORIGIN || `http://localhost:${PORT}`
 ).replace(/\/+$/, "");
 const UNIVER = process.env.FRONTEND_PUBLIC_UNIVER_BACKEND_URL;
+const ONLYOFFICE = process.env.FRONTEND_PUBLIC_ONLYOFFICE_BACKEND_URL;
 const DEV_URL = new URL(DEV_ORIGIN);
 const DEV_HOST = DEV_URL.hostname;
 const isDevMode = IS_DEV_MODE;
@@ -330,6 +331,7 @@ const config = {
       MB_LOG_ANALYTICS: "false",
       ENABLE_CLJS_HOT_RELOAD: process.env.ENABLE_CLJS_HOT_RELOAD ?? "false",
       FRONTEND_PUBLIC_UNIVER_BACKEND_URL: UNIVER,
+      FRONTEND_PUBLIC_ONLYOFFICE_BACKEND_URL: ONLYOFFICE,
     }),
     ...COMPRESSION_CONFIG,
   ],
@@ -344,6 +346,9 @@ if (shouldEnableHotRefresh) {
 
   if (!UNIVER) {
     throw new Error("FRONTEND_PUBLIC_UNIVER_BACKEND_URL is required");
+  }
+  if (!ONLYOFFICE) {
+    throw new Error("FRONTEND_PUBLIC_ONLYOFFICE_BACKEND_URL is required");
   }
 
   // suffixing with ".hot" allows us to run both `bun run build-hot` and `bun run test` or `bun run test-watch` simultaneously
