@@ -21,7 +21,11 @@ import { PLUGIN_MODERATION } from "metabase/plugins";
 import { useDispatch, useSelector } from "metabase/redux";
 import { ActionIcon, Box, Flex, Icon, Tooltip } from "metabase/ui";
 import { DEFAULT_SEARCH_LIMIT } from "metabase/utils/constants";
-import { type VeritlyChartRef, listCharts } from "metabase/veritly/charts";
+import {
+  type VeritlyChartRef,
+  listCharts,
+  watchCharts,
+} from "metabase/veritly/charts";
 import { VisualizerModal } from "metabase/visualizer/components/VisualizerModal";
 import type {
   CardId,
@@ -68,13 +72,14 @@ export function QuestionList({
     }
 
     const ctrl = new AbortController();
-    listCharts(ctrl.signal)
-      .then(setCharts)
-      .catch(() => {
+    const load = () =>
+      listCharts(ctrl.signal).then((items) => {
         if (!ctrl.signal.aborted) {
-          setCharts([]);
+          setCharts(items);
         }
       });
+    void load();
+    void watchCharts(() => void load(), ctrl.signal);
     return () => ctrl.abort();
   }, [onSelectVeritlyChart]);
 

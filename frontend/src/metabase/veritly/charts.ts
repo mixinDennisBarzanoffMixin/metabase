@@ -5,6 +5,7 @@ import {
   getOnlyOfficeChart,
   listOnlyOfficeCharts,
   watchOnlyOfficeChart,
+  watchOnlyOfficeCharts,
 } from "./onlyoffice";
 import {
   type UniverChartRef,
@@ -21,6 +22,7 @@ type Provider = {
   id: string;
   list(signal?: AbortSignal): Promise<VeritlyChartRef[]>;
   get(ref: VeritlyChartRef, signal?: AbortSignal): Promise<VeritlyChartSource>;
+  changes?(refresh: VoidFunction, signal: AbortSignal): Promise<void>;
   watch(
     ref: VeritlyChartRef,
     refresh: VoidFunction,
@@ -40,13 +42,36 @@ export class ChartRegistry {
   }
 
   async list(signal?: AbortSignal) {
-    return (
-      await Promise.all(
-        Array.from(this.#providers.values(), (item) => item.list(signal)),
-      )
-    )
-      .flat()
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const rows = await Promise.all(
+      Array.from(this.#providers.values(), (item) =>
+        item.list(signal).catch((error: unknown) => {
+          if (!signal?.aborted) {
+            console.error(`Chart provider ${item.id} list failed`, error);
+          }
+          return [];
+        }),
+      ),
+    );
+    return rows.flat().sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async changes(refresh: VoidFunction, signal: AbortSignal) {
+    await Promise.all(
+      Array.from(this.#providers.values()).flatMap((item) =>
+        item.changes
+          ? [
+              item.changes(refresh, signal).catch((error: unknown) => {
+                if (!signal.aborted) {
+                  console.error(
+                    `Chart provider ${item.id} changes failed`,
+                    error,
+                  );
+                }
+              }),
+            ]
+          : [],
+      ),
+    );
   }
 
   get(ref: VeritlyChartRef, signal?: AbortSignal) {
@@ -76,6 +101,7 @@ const registry = new ChartRegistry()
         source: await getOnlyOfficeChart(ref, signal),
       };
     },
+    changes: watchOnlyOfficeCharts,
     watch: watchOnlyOfficeChart,
   })
   .use({
@@ -99,4 +125,5 @@ const registry = new ChartRegistry()
 
 export const listCharts = registry.list.bind(registry);
 export const getChart = registry.get.bind(registry);
+export const watchCharts = registry.changes.bind(registry);
 export const watchChart = registry.watch.bind(registry);

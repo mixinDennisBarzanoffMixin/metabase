@@ -134,14 +134,15 @@ function delay(signal: AbortSignal) {
 }
 
 async function stream(
-  ref: ChartRef,
+  path: string,
   refresh: VoidFunction,
   signal: AbortSignal,
 ) {
-  const res = await fetch(
-    `${base()}/onlyoffice-api/files/${encodeURIComponent(ref.fileId)}/charts/events`,
-    { credentials: "include", signal, headers: headers() },
-  );
+  const res = await fetch(`${base()}/onlyoffice-api${path}`, {
+    credentials: "include",
+    signal,
+    headers: headers(),
+  });
   if (!res.ok || !res.body) {
     throw new Error(await res.text());
   }
@@ -156,19 +157,20 @@ async function stream(
     buffer += decoder.decode(item.value, { stream: true });
     const frames = buffer.split(/\r?\n\r?\n/);
     buffer = frames.pop() || "";
-    if (frames.some((frame) => frame.split(/\r?\n/).includes("event: chart"))) {
+    if (
+      frames.some((frame) => {
+        const lines = frame.split(/\r?\n/);
+        return lines.includes("event: ready") || lines.includes("event: chart");
+      })
+    ) {
       refresh();
     }
   }
 }
 
-export async function watchOnlyOfficeChart(
-  ref: ChartRef,
-  refresh: VoidFunction,
-  signal: AbortSignal,
-) {
+async function watch(path: string, refresh: VoidFunction, signal: AbortSignal) {
   while (!signal.aborted) {
-    await stream(ref, refresh, signal).catch(async (error: unknown) => {
+    await stream(path, refresh, signal).catch(async (error: unknown) => {
       if (signal.aborted) {
         return;
       }
@@ -176,4 +178,23 @@ export async function watchOnlyOfficeChart(
       await delay(signal);
     });
   }
+}
+
+export function watchOnlyOfficeCharts(
+  refresh: VoidFunction,
+  signal: AbortSignal,
+) {
+  return watch("/charts/events", refresh, signal);
+}
+
+export function watchOnlyOfficeChart(
+  ref: ChartRef,
+  refresh: VoidFunction,
+  signal: AbortSignal,
+) {
+  return watch(
+    `/files/${encodeURIComponent(ref.fileId)}/charts/events`,
+    refresh,
+    signal,
+  );
 }
