@@ -81,8 +81,6 @@
     "@veritly/chart": "workspace:*",
     "@veritly/chart-ui": "workspace:*",
     "@veritly/iframe": "workspace:*",
-    "@veritly/univer-chart": "workspace:*",
-    "@veritly/univer-chart-ui": "workspace:*",
     "@visx/axis": "^3.10.1",
     "@visx/clip-path": "^3.3.0",
     "@visx/grid": "^3.5.0",

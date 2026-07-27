@@ -11,7 +11,7 @@
 
 (use-fixtures :once (fixtures/initialize :db :test-users))
 
-(deftest add-univer-chart-test
+(deftest add-onlyoffice-chart-test
   (mt/with-temp [:model/Collection {collection-id :id} {:name "Veritly chart test"}
                  :model/Dashboard  {dashboard-id :id}  {:name          "Distribution"
                                                         :collection_id collection-id}]
@@ -19,25 +19,19 @@
     (try
       (mt/with-current-user (mt/user->id :crowberto)
         (binding [context/*project-id* "chart-test"]
-          (let [chart  {:unitId    "unit-1"
-                        :unitName  "Distribution.xlsx"
-                        :sheetId   "sheet-1"
-                        :sheetName "Sheet1"
-                        :id        "chart-1"
-                        :chartType 4
-                        :revision  2}
-                ref    {:unitId    "unit-1"
-                        :unitName  "Distribution.xlsx"
-                        :sheetId   "sheet-1"
-                        :sheetName "Sheet1"
-                        :chartId   "chart-1"
+          (let [chart  {:provider   "onlyoffice"
+                        :fileId     "file-1"
+                        :fileName   "Distribution.xlsx"
+                        :sourceId   "sheet-1"
+                        :sourceName "Sheet1"
+                        :chartId    "chart-1"
                         :revision  2
-                        :name      "Distribution.xlsx / Sheet1 / Chart 4"}
-                result (files/add-univer-chart! dashboard-id chart)
+                        :name      "Sales"}
+                result (files/add-chart! dashboard-id chart)
                 card   (t2/select-one :model/DashboardCard :dashboard_id dashboard-id)]
-            (is (= "univerChart" (:kind result)))
-            (is (= ref (get-in card [:visualization_settings :univerChart])))
-            (is (= "univerChart" (get-in card [:visualization_settings :virtual_card :display])))
+            (is (= "veritlyChart" (:kind result)))
+            (is (= chart (get-in card [:visualization_settings :veritlyChart])))
+            (is (= "veritlyChart" (get-in card [:visualization_settings :virtual_card :display])))
             (is (= [6 5] [(:size_x card) (:size_y card)])))))
       (finally
         (t2/delete! :veritly_project :project_id "chart-test")))))

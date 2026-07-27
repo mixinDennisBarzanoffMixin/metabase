@@ -1,5 +1,4 @@
 import type { ChartRef, ChartSource } from "@veritly/chart";
-import type { ChartSource as UniverSource } from "@veritly/univer-chart";
 
 import {
   getOnlyOfficeChart,
@@ -7,16 +6,11 @@ import {
   watchOnlyOfficeChart,
   watchOnlyOfficeCharts,
 } from "./onlyoffice";
-import {
-  type UniverChartRef,
-  getUniverChartSource,
-  listUniverCharts,
-} from "./univer";
-
-export type VeritlyChartRef = ChartRef | UniverChartRef;
-export type VeritlyChartSource =
-  | { provider: "onlyoffice"; source: ChartSource }
-  | { provider: "univer"; source: UniverSource };
+export type VeritlyChartRef = ChartRef & { provider: "onlyoffice" };
+export type VeritlyChartSource = {
+  provider: "onlyoffice";
+  source: ChartSource;
+};
 
 type Provider = {
   id: string;
@@ -103,24 +97,6 @@ const registry = new ChartRegistry()
     },
     changes: watchOnlyOfficeCharts,
     watch: watchOnlyOfficeChart,
-  })
-  .use({
-    id: "univer",
-    list: listUniverCharts,
-    async get(ref, signal) {
-      return {
-        provider: "univer",
-        source: await getUniverChartSource(ref as UniverChartRef, signal),
-      };
-    },
-    async watch(_ref, _refresh, signal) {
-      if (signal.aborted) {
-        return;
-      }
-      await new Promise<void>((resolve) =>
-        signal.addEventListener("abort", () => resolve(), { once: true }),
-      );
-    },
   });
 
 export const listCharts = registry.list.bind(registry);

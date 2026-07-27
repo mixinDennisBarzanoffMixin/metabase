@@ -1,8 +1,10 @@
+/* eslint-disable no-console -- Veritly diagnostics intentionally trace each dashboard PDF rendering stage. */
 import Color from "color";
 import { t } from "ttag";
 
 import { isStorybookActive } from "metabase/env";
 import { getCspNonce } from "metabase/utils/csp";
+import { openSaveDialog } from "metabase/utils/dom";
 import { openImageBlobOnStorybook } from "metabase/utils/loki-utils";
 import type { Dashboard } from "metabase-types/api";
 
@@ -164,12 +166,15 @@ const HEADER_MARGIN_BOTTOM = 12;
 const PARAMETERS_MARGIN_BOTTOM = 12;
 const PAGE_PADDING = 16;
 
-interface SavePdfProps {
-  fileName: string;
+interface RenderPdfProps {
   selector: string;
   parametersNodeSelector: string;
   dashboardName: string;
   includeBranding: boolean;
+}
+
+interface SavePdfProps extends RenderPdfProps {
+  fileName: string;
 }
 
 async function isValidColor(str: string) {
@@ -184,21 +189,36 @@ async function isValidColor(str: string) {
   }
 }
 
-export const saveDashboardPdf = async ({
-  fileName,
+export const renderDashboardPdf = async ({
   selector,
   parametersNodeSelector,
   dashboardName,
   includeBranding,
-}: SavePdfProps) => {
+}: RenderPdfProps) => {
+  console.info("[veritly-download]", "dashboard PDF render starting", {
+    selector,
+    parametersNodeSelector,
+    dashboardName,
+    includeBranding,
+  });
   const dashboardRoot = document.querySelector(selector);
   const gridNode = dashboardRoot?.querySelector(".react-grid-layout");
 
   if (!gridNode || !(gridNode instanceof HTMLElement)) {
-    console.warn("No dashboard content found", selector);
-    return;
+    console.error("[veritly-download]", "dashboard PDF grid missing", {
+      selector,
+      dashboardName,
+      root: Boolean(dashboardRoot),
+    });
+    throw new Error(`No dashboard content found for selector ${selector}`);
   }
   const cardsBounds = getSortedDashCardBounds(gridNode);
+  console.info("[veritly-download]", "dashboard PDF cards measured", {
+    dashboardName,
+    cards: cardsBounds.length,
+    gridWidth: gridNode.offsetWidth,
+    gridHeight: gridNode.offsetHeight,
+  });
 
   const pdfHeader = createHeaderElement(dashboardName, HEADER_MARGIN_BOTTOM);
   const parametersNode = dashboardRoot
@@ -227,6 +247,16 @@ export const saveDashboardPdf = async ({
   const verticalOffset =
     headerHeight + parametersHeight + (includeBranding ? brandingHeight : 0);
   const contentHeight = gridNode.offsetHeight + verticalOffset;
+  console.info("[veritly-download]", "dashboard PDF dimensions computed", {
+    dashboardName,
+    contentWidth,
+    contentHeight,
+    width,
+    headerHeight,
+    parametersHeight,
+    brandingHeight,
+    verticalOffset,
+  });
 
   const rawBackgroundColor = getComputedStyle(document.documentElement)
     .getPropertyValue("--mb-color-bg-dashboard")
@@ -239,8 +269,16 @@ export const saveDashboardPdf = async ({
   if (!(await isValidColor(backgroundColor))) {
     backgroundColor = "white"; // Fallback to white if the color is invalid
   }
+  console.info("[veritly-download]", "dashboard PDF background resolved", {
+    dashboardName,
+    rawBackgroundColor,
+    backgroundColor,
+  });
 
   const { default: html2canvas } = await import("html2canvas-pro");
+  console.info("[veritly-download]", "dashboard PDF html2canvas loaded", {
+    dashboardName,
+  });
   const image = await html2canvas(gridNode, {
     height: contentHeight,
     width: contentWidth,
@@ -285,6 +323,11 @@ export const saveDashboardPdf = async ({
       restoreNestedSvgOverflow(node);
     },
   });
+  console.info("[veritly-download]", "dashboard PDF canvas captured", {
+    dashboardName,
+    width: image.width,
+    height: image.height,
+  });
 
   // For Storybook/Loki visual testing, display the canvas as an image and skip PDF generation
   if (isStorybookActive) {
@@ -298,6 +341,9 @@ export const saveDashboardPdf = async ({
   }
 
   const { default: jspdf } = await import("jspdf");
+  console.info("[veritly-download]", "dashboard PDF library loaded", {
+    dashboardName,
+  });
 
   // Page page height cannot be smaller than page width otherwise the content will be cut off
   // or the page should have a landscape orientation.
@@ -310,6 +356,12 @@ export const saveDashboardPdf = async ({
     minPageHeight,
     verticalOffset,
   );
+  console.info("[veritly-download]", "dashboard PDF page breaks computed", {
+    dashboardName,
+    optimalPageHeight,
+    minPageHeight,
+    pageBreaks,
+  });
 
   const pdf = new jspdf({
     unit: "px",
@@ -334,6 +386,17 @@ export const saveDashboardPdf = async ({
     const pageHeight = !isLastPage
       ? pageBreaksDiff + PAGE_PADDING * 2
       : Math.max(pageBreaksDiff + PAGE_PADDING * 2, optimalPageHeight);
+    console.info("[veritly-download]", "dashboard PDF page rendering", {
+      dashboardName,
+      page: index + 1,
+      pages: pageEnds.length,
+      sourceStart: prevBreak,
+      sourceEnd: pageBreak,
+      sourceHeight: pageBreaksDiff,
+      pageHeight,
+      first: isFirstPage,
+      last: isLastPage,
+    });
 
     pdf.addPage([width, pageHeight]);
 
@@ -393,7 +456,31 @@ export const saveDashboardPdf = async ({
   image.width = 0;
   image.height = 0;
 
-  pdf.save(fileName);
+  const blob = pdf.output("blob");
+  console.info("[veritly-download]", "dashboard PDF blob ready", {
+    dashboardName,
+    pages: pageEnds.length,
+    type: blob.type,
+    size: blob.size,
+  });
+  return blob;
+};
+
+export const saveDashboardPdf = async (props: SavePdfProps) => {
+  console.info("[veritly-download]", "dashboard PDF browser save starting", {
+    dashboardName: props.dashboardName,
+    fileName: props.fileName,
+  });
+  const blob = await renderDashboardPdf(props);
+  if (blob) {
+    console.info("[veritly-download]", "dashboard PDF save dialog opening", {
+      dashboardName: props.dashboardName,
+      fileName: props.fileName,
+      type: blob.type,
+      size: blob.size,
+    });
+    openSaveDialog(props.fileName, blob);
+  }
 };
 
 export const getExportTabAsPdfButtonText = (tabs: Dashboard["tabs"]) => {

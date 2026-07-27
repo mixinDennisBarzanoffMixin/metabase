@@ -28,11 +28,21 @@ describe("MetabaseWorkspaceDriver", () => {
       async () => {
         saved = true;
       },
+      async () => new Blob(["dashboard"], { type: "application/pdf" }),
     );
     await pending;
     expect(paths).toEqual(["/veritly/dashboard/1"]);
     await driver.flush(codec.flush(open.frame, 2, open.path));
     expect(saved).toBe(true);
+    const result = await driver.invoke(
+      codec.invoke(open.frame, 3, open.path, "download", null),
+    );
+    expect(result).toBeInstanceOf(Blob);
+    if (!(result instanceof Blob)) {
+      throw new Error("Download did not return a Blob");
+    }
+    expect(result.size).toBe(9);
+    expect(result.type).toBe("application/pdf");
     dispose();
     driver.dispose();
   });

@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- Veritly diagnostics intentionally trace the question flush and export lifecycle. */
 import { useHotkeys } from "@mantine/hooks";
 import type { Location } from "history";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -55,13 +56,16 @@ import {
 import type { QueryBuilderUIControls, State } from "metabase/redux/store";
 import { getIsNavbarOpen } from "metabase/selectors/app";
 import { getMetadata } from "metabase/selectors/metadata";
-import { getSetting } from "metabase/selectors/settings";
+import { getSetting, getTokenFeature } from "metabase/selectors/settings";
 import {
   canManageSubscriptions,
   getUser,
   getUserIsAdmin,
 } from "metabase/selectors/user";
+import { settle } from "metabase/veritly/export";
 import { useVeritlyFlush } from "metabase/veritly/flush";
+import { renderChartImage } from "metabase/visualizations/lib/save-chart-image";
+import { getCardKey } from "metabase/visualizations/lib/utils";
 import type { Series } from "metabase-types/api";
 
 import {
@@ -472,28 +476,84 @@ function QueryBuilderInner(props: QueryBuilderInnerProps) {
 
   const handleSave = useSaveQuestion({ scheduleCallback });
 
-  useVeritlyFlush("question", async () => {
-    if (document.querySelector('[role="dialog"] form')) {
-      throw new Error(
-        "The question cannot flush while an unfinished dialog is open",
+  const branded = !useSelector((state) => getTokenFeature(state, "whitelabel"));
+  useVeritlyFlush(
+    "question",
+    async () => {
+      if (document.querySelector('[role="dialog"] form')) {
+        throw new Error(
+          "The question cannot flush while an unfinished dialog is open",
+        );
+      }
+      const active = document.activeElement;
+      if (active instanceof HTMLElement) {
+        active.blur();
+      }
+      await new Promise<void>((done) => setTimeout(done, 0));
+      const current = latest.current;
+      if (!current.isDirty) {
+        return;
+      }
+      if (!current.question || current.question.id() == null) {
+        throw new Error(
+          "A new question cannot flush before its first explicit save",
+        );
+      }
+      await handleSave(current.question);
+    },
+    async () => {
+      console.info(
+        "[veritly-download]",
+        "question export readiness wait starting",
+        {
+          id: latest.current.question?.id(),
+          running: latest.current.uiControls.isRunning,
+          loaded: latest.current.isLoadingComplete,
+        },
       );
-    }
-    const active = document.activeElement;
-    if (active instanceof HTMLElement) {
-      active.blur();
-    }
-    await new Promise<void>((done) => setTimeout(done, 0));
-    const current = latest.current;
-    if (!current.isDirty) {
-      return;
-    }
-    if (!current.question || current.question.id() == null) {
-      throw new Error(
-        "A new question cannot flush before its first explicit save",
+      await settle(
+        () => {
+          const id = latest.current.question?.id();
+          if (id == null) {
+            return false;
+          }
+          return (
+            latest.current.isLoadingComplete &&
+            !latest.current.uiControls.isRunning &&
+            document.querySelector(
+              `[data-card-key='${getCardKey(id)}']`,
+            ) instanceof HTMLElement
+          );
+        },
+        "Question",
+        10_000,
       );
-    }
-    await handleSave(current.question);
-  });
+      console.info("[veritly-download]", "question export DOM ready", {
+        id: latest.current.question?.id(),
+      });
+      const id = latest.current.question?.id();
+      if (id == null) {
+        throw new Error("The question did not load");
+      }
+      const selector = `[data-card-key='${getCardKey(id)}']`;
+      console.info("[veritly-download]", "question chart render starting", {
+        id,
+        selector,
+        branded,
+      });
+      const blob = await renderChartImage({
+        selector,
+        includeBranding: branded,
+      });
+      console.info("[veritly-download]", "question chart render completed", {
+        id,
+        selector,
+        type: blob.type,
+        size: blob.size,
+      });
+      return blob;
+    },
+  );
 
   useMount(() => {
     // Prevent initializing the query builder if the route is out of sync

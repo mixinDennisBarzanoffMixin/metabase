@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- Veritly diagnostics intentionally trace each chart image rendering stage. */
 import EmbedFrameS from "metabase/embedding/theme.module.css";
 import { isStorybookActive } from "metabase/env";
 import { openImageBlobOnStorybook } from "metabase/utils/loki-utils";
@@ -12,22 +13,30 @@ import { resolveSvgVarPaint, restoreNestedSvgOverflow } from "./image-exports";
 export const SAVING_DOM_IMAGE_CLASS = "saving-dom-image";
 export const SAVING_DOM_IMAGE_HIDDEN_CLASS = "saving-dom-image-hidden";
 
-interface Opts {
+interface RenderOpts {
   selector: string;
-  fileName: string;
   includeBranding: boolean;
 }
 
-export const saveChartImage = async ({
+interface Opts extends RenderOpts {
+  fileName: string;
+}
+
+export const renderChartImage = async ({
   selector,
-  fileName,
   includeBranding,
-}: Opts) => {
+}: RenderOpts) => {
+  console.info("[veritly-download]", "chart image render starting", {
+    selector,
+    includeBranding,
+  });
   const node = document.querySelector(selector);
 
   if (!node || !(node instanceof HTMLElement)) {
-    console.warn("No node found for selector", selector);
-    return;
+    console.error("[veritly-download]", "chart image node missing", {
+      selector,
+    });
+    throw new Error(`No chart found for selector ${selector}`);
   }
 
   const contentHeight = node.getBoundingClientRect().height;
@@ -39,12 +48,23 @@ export const saveChartImage = async ({
 
   // Appending any element to the node does not automatically increase the canvas height.
   const canvasHeight = contentHeight + verticalOffset;
+  console.info("[veritly-download]", "chart image dimensions measured", {
+    selector,
+    contentWidth,
+    contentHeight,
+    brandingHeight,
+    canvasHeight,
+  });
 
   // Ensure fonts are fully loaded before capturing, otherwise
   // html2canvas may render text with fallback fonts.
   await document.fonts.ready;
+  console.info("[veritly-download]", "chart image fonts ready", { selector });
 
   const { default: html2canvas } = await import("html2canvas-pro");
+  console.info("[veritly-download]", "chart image html2canvas loaded", {
+    selector,
+  });
   const canvas = await html2canvas(node, {
     scale: 2,
     useCORS: true,
@@ -77,29 +97,53 @@ export const saveChartImage = async ({
       restoreNestedSvgOverflow(node);
     },
   });
+  console.info("[veritly-download]", "chart image canvas captured", {
+    selector,
+    width: canvas.width,
+    height: canvas.height,
+  });
 
-  if (isStorybookActive) {
-    // In storybook/loki we must wait for the blob and image to be ready
-    // before the play function returns, otherwise the async callback may
-    // be garbage-collected ("Promise was collected").
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve),
-    );
-    if (blob) {
-      openImageBlobOnStorybook({ canvas, blob });
-    }
-  } else {
-    canvas.toBlob((blob) => {
-      if (blob) {
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.rel = "noopener";
-        link.download = fileName;
-        link.href = url;
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      }
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/png"),
+  );
+  if (!blob) {
+    console.error("[veritly-download]", "chart image blob conversion failed", {
+      selector,
     });
+    throw new Error("The chart image renderer returned no content");
   }
+  console.info("[veritly-download]", "chart image blob ready", {
+    selector,
+    type: blob.type,
+    size: blob.size,
+  });
+  if (isStorybookActive) {
+    openImageBlobOnStorybook({ canvas, blob });
+  }
+  return blob;
+};
+
+export const saveChartImage = async (opts: Opts) => {
+  console.info("[veritly-download]", "chart image browser save starting", {
+    selector: opts.selector,
+    fileName: opts.fileName,
+  });
+  const blob = await renderChartImage(opts);
+  if (isStorybookActive) {
+    return;
+  }
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.rel = "noopener";
+  link.download = opts.fileName;
+  link.href = url;
+  console.info("[veritly-download]", "chart image anchor clicking", {
+    fileName: opts.fileName,
+    url,
+    type: blob.type,
+    size: blob.size,
+  });
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 };

@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- Veritly diagnostics intentionally trace the dashboard flush and export lifecycle. */
 import cx from "classnames";
 import type { PropsWithChildren } from "react";
 import { useRef, useState } from "react";
@@ -34,9 +35,16 @@ import {
 } from "metabase/hooks/use-page-title";
 import { useDispatch, useSelector } from "metabase/redux";
 import { setErrorPage } from "metabase/redux/app";
+import { getTokenFeature } from "metabase/selectors/settings";
 import * as Urls from "metabase/urls";
 import { parseHashOptions, stringifyHashOptions } from "metabase/utils/browser";
+import { settle } from "metabase/veritly/export";
 import { useVeritlyFlush } from "metabase/veritly/flush";
+import {
+  DASHBOARD_HEADER_PARAMETERS_PDF_EXPORT_NODE_ID,
+  DASHBOARD_PDF_EXPORT_ROOT_ID,
+  renderDashboardPdf,
+} from "metabase/visualizations/lib/save-dashboard-pdf";
 import type { DashboardId, Dashboard as IDashboard } from "metabase-types/api";
 
 import { useRegisterDashboardMetabotContext } from "../../hooks/use-register-dashboard-metabot-context";
@@ -68,19 +76,101 @@ function DashboardAppInner({
   useSlowCardNotification();
   const state = useDashboardContext();
   const { dashboard, loadingStartTime, isRunning } = state;
+  const branded = !useSelector((state) => getTokenFeature(state, "whitelabel"));
   const latest = useRef(state);
   latest.current = state;
-  useVeritlyFlush("dashboard", async () => {
-    const active = document.activeElement;
-    if (active instanceof HTMLElement) {
-      active.blur();
-    }
-    await new Promise<void>((done) => setTimeout(done, 0));
-    if (!latest.current.isDirty) {
-      return;
-    }
-    await latest.current.updateDashboardAndCards();
-  });
+  useVeritlyFlush(
+    "dashboard",
+    async () => {
+      console.info("[veritly-download]", "dashboard flush hook starting", {
+        id: latest.current.dashboard?.id,
+        name: latest.current.dashboard?.name,
+        dirty: latest.current.isDirty,
+      });
+      const active = document.activeElement;
+      if (active instanceof HTMLElement) {
+        active.blur();
+      }
+      await new Promise<void>((done) => setTimeout(done, 0));
+      if (!latest.current.isDirty) {
+        console.info(
+          "[veritly-download]",
+          "dashboard flush hook skipped clean dashboard",
+          {
+            id: latest.current.dashboard?.id,
+            name: latest.current.dashboard?.name,
+          },
+        );
+        return;
+      }
+      await latest.current.updateDashboardAndCards();
+      console.info("[veritly-download]", "dashboard flush hook completed", {
+        id: latest.current.dashboard?.id,
+        name: latest.current.dashboard?.name,
+      });
+    },
+    async () => {
+      const selector = `#${DASHBOARD_PDF_EXPORT_ROOT_ID}`;
+      console.info(
+        "[veritly-download]",
+        "dashboard export readiness wait starting",
+        {
+          id: latest.current.dashboard?.id,
+          name: latest.current.dashboard?.name,
+          selector,
+          running: latest.current.isRunning,
+        },
+      );
+      await settle(
+        () => {
+          const grid = document
+            .querySelector(selector)
+            ?.querySelector(".react-grid-layout");
+          return (
+            Boolean(latest.current.dashboard) &&
+            !latest.current.isRunning &&
+            grid instanceof HTMLElement &&
+            grid.offsetWidth > 0
+          );
+        },
+        "Dashboard",
+        10_000,
+      );
+      console.info("[veritly-download]", "dashboard export DOM ready", {
+        id: latest.current.dashboard?.id,
+        name: latest.current.dashboard?.name,
+        selector,
+      });
+      const item = latest.current.dashboard;
+      if (!item) {
+        throw new Error("The dashboard did not load");
+      }
+      const blob = await renderDashboardPdf({
+        selector,
+        parametersNodeSelector: `#${DASHBOARD_HEADER_PARAMETERS_PDF_EXPORT_NODE_ID}`,
+        dashboardName: item.name,
+        includeBranding: branded,
+      });
+      if (!blob) {
+        console.error(
+          "[veritly-download]",
+          "dashboard PDF renderer returned no content",
+          {
+            id: item.id,
+            name: item.name,
+          },
+        );
+        throw new Error("The dashboard PDF renderer returned no content");
+      }
+      console.info("[veritly-download]", "dashboard export hook completed", {
+        id: item.id,
+        name: item.name,
+        type: blob.type,
+        size: blob.size,
+      });
+      return blob;
+    },
+  );
   const documentTitle = useSelector(getDocumentTitle);
 
   usePageTitleWithLoadingTime(documentTitle || dashboard?.name || "", {

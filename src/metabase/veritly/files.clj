@@ -60,7 +60,7 @@
         provider (required-text chart :provider)]
     (when-not (number? revision)
       (throw (ex-info "Live chart revision missing." {:status-code 400})))
-    (when-not (#{"univer" "onlyoffice"} provider)
+    (when-not (= "onlyoffice" provider)
       (throw (ex-info "Live chart provider is unsupported." {:status-code 400})))
     (merge
      {:provider   provider
@@ -71,7 +71,7 @@
       :sourceName (required-text chart :sourceName)
       :revision   revision
       :name       (required-text chart :name)}
-     (select-keys chart [:unitId :unitName :sheetId :sheetName]))))
+     {})))
 
 (defn add-chart!
   [dashboard-id chart]

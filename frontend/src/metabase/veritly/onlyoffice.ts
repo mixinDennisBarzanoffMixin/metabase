@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- Veritly diagnostics trace chart projection requests and SSE delivery. */
 import type { ChartRef, ChartSource } from "@veritly/chart";
 
 type Body = { charts?: unknown; source?: unknown };
@@ -41,10 +42,22 @@ function headers() {
 }
 
 async function get(path: string, signal?: AbortSignal): Promise<Body> {
-  const res = await fetch(`${base()}/onlyoffice-api${path}`, {
+  const url = `${base()}/onlyoffice-api${path}`;
+  console.info("[veritly-chart:metabase]", "request starting", {
+    path,
+    url,
+    project: project(),
+  });
+  const res = await fetch(url, {
+    cache: "no-store",
     credentials: "include",
     signal,
     headers: headers(),
+  });
+  console.info("[veritly-chart:metabase]", "response received", {
+    path,
+    url,
+    status: res.status,
   });
   if (!res.ok) {
     throw new Error(await res.text());
@@ -80,10 +93,19 @@ export async function listOnlyOfficeCharts(signal?: AbortSignal) {
   if (!Array.isArray(body.charts)) {
     throw new Error("ONLYOFFICE charts response missing charts");
   }
-  return body.charts.map(ref);
+  const charts = body.charts.map(ref);
+  console.info("[veritly-chart:metabase]", "catalog loaded", {
+    charts: charts.length,
+  });
+  return charts;
 }
 
 export async function getOnlyOfficeChart(ref: ChartRef, signal?: AbortSignal) {
+  console.info("[veritly-chart:metabase]", "chart load requested", {
+    file: ref.fileId,
+    chart: ref.chartId,
+    revision: ref.revision,
+  });
   const body = await get(
     `/files/${encodeURIComponent(ref.fileId)}/charts/${encodeURIComponent(ref.chartId)}`,
     signal,
@@ -103,7 +125,7 @@ export async function getOnlyOfficeChart(ref: ChartRef, signal?: AbortSignal) {
   ) {
     throw new Error("ONLYOFFICE chart spec is malformed");
   }
-  return {
+  const source = {
     ...item,
     spec: {
       version: 1,
@@ -113,6 +135,14 @@ export async function getOnlyOfficeChart(ref: ChartRef, signal?: AbortSignal) {
     },
     updated: num(body.source.updated, "updated"),
   } as ChartSource;
+  console.info("[veritly-chart:metabase]", "chart loaded", {
+    file: source.fileId,
+    chart: source.chartId,
+    revision: source.revision,
+    updated: source.updated,
+    kind: source.spec.kind,
+  });
+  return source;
 }
 
 function refFromSource(raw: Record<string, unknown>) {
@@ -138,7 +168,14 @@ async function stream(
   refresh: VoidFunction,
   signal: AbortSignal,
 ) {
-  const res = await fetch(`${base()}/onlyoffice-api${path}`, {
+  const url = `${base()}/onlyoffice-api${path}`;
+  console.info("[veritly-chart:metabase]", "event stream opening", {
+    path,
+    url,
+    project: project(),
+  });
+  const res = await fetch(url, {
+    cache: "no-store",
     credentials: "include",
     signal,
     headers: headers(),
@@ -146,6 +183,10 @@ async function stream(
   if (!res.ok || !res.body) {
     throw new Error(await res.text());
   }
+  console.info("[veritly-chart:metabase]", "event stream connected", {
+    path,
+    status: res.status,
+  });
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -157,12 +198,21 @@ async function stream(
     buffer += decoder.decode(item.value, { stream: true });
     const frames = buffer.split(/\r?\n\r?\n/);
     buffer = frames.pop() || "";
-    if (
-      frames.some((frame) => {
-        const lines = frame.split(/\r?\n/);
-        return lines.includes("event: ready") || lines.includes("event: chart");
-      })
-    ) {
+    const events = frames.flatMap((frame) =>
+      frame
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("event: "))
+        .map((line) => line.slice(7)),
+    );
+    if (events.includes("ready") || events.includes("chart")) {
+      console.info(
+        "[veritly-chart:metabase]",
+        "event stream refresh received",
+        {
+          path,
+          events,
+        },
+      );
       refresh();
     }
   }
@@ -172,9 +222,15 @@ async function watch(path: string, refresh: VoidFunction, signal: AbortSignal) {
   while (!signal.aborted) {
     await stream(path, refresh, signal).catch(async (error: unknown) => {
       if (signal.aborted) {
+        console.info("[veritly-chart:metabase]", "event stream stopped", {
+          path,
+        });
         return;
       }
-      console.error("ONLYOFFICE chart event stream failed", error);
+      console.error("[veritly-chart:metabase] event stream failed", {
+        path,
+        error,
+      });
       await delay(signal);
     });
   }

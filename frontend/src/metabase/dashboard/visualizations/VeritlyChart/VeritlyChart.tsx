@@ -1,6 +1,6 @@
+/* eslint-disable no-console -- Veritly diagnostics trace live chart reloads through the dashboard lifecycle. */
 import type { ChartRef } from "@veritly/chart";
 import { ChartView } from "@veritly/chart-ui/view";
-import { UniverChartView } from "@veritly/univer-chart-ui/view";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { t } from "ttag";
 
@@ -81,20 +81,10 @@ function ref(settings: VisualizationSettings): VeritlyChartRef {
     revision: num(raw.revision, "revision"),
     name: text(raw.name, "name"),
   };
-  if (base.provider === "onlyoffice") {
-    return base;
-  }
-  if (base.provider !== "univer") {
+  if (base.provider !== "onlyoffice") {
     throw new Error(`Live chart provider is unsupported: ${base.provider}`);
   }
-  return {
-    ...base,
-    provider: "univer",
-    unitId: text(raw.unitId, "unitId"),
-    unitName: text(raw.unitName, "unitName"),
-    sheetId: text(raw.sheetId, "sheetId"),
-    sheetName: text(raw.sheetName, "sheetName"),
-  };
+  return { ...base, provider: "onlyoffice" };
 }
 
 function reason(error: unknown) {
@@ -107,19 +97,11 @@ function View({ source }: { source: VeritlyChartSource }) {
   useEffect(() => setError(undefined), [source]);
   return (
     <Box h="100%" style={{ minHeight: 0, position: "relative" }}>
-      {source.provider === "onlyoffice" ? (
-        <ChartView
-          spec={source.source.spec}
-          onError={fail}
-          style={{ width: "100%", height: "100%" }}
-        />
-      ) : (
-        <UniverChartView
-          source={source.source}
-          onError={fail}
-          style={{ width: "100%", height: "100%" }}
-        />
-      )}
+      <ChartView
+        spec={source.source.spec}
+        onError={fail}
+        style={{ width: "100%", height: "100%" }}
+      />
       {error && (
         <Box pos="absolute" inset={0} p="md">
           <Text c="error">{error}</Text>
@@ -135,19 +117,76 @@ export function VeritlyChart({ settings }: Props) {
 
   useEffect(() => {
     const ctrl = new AbortController();
-    const load = () =>
-      getChart(chart, ctrl.signal).then(
-        (source) => setState({ tag: "ready", source }),
+    let seq = 0;
+    const load = () => {
+      const id = ++seq;
+      console.info(
+        "[veritly-chart:metabase]",
+        "dashboard chart load starting",
+        {
+          file: chart.fileId,
+          chart: chart.chartId,
+          request: id,
+        },
+      );
+      return getChart(chart, ctrl.signal).then(
+        (source) => {
+          if (id === seq && !ctrl.signal.aborted) {
+            console.info(
+              "[veritly-chart:metabase]",
+              "dashboard chart load committed",
+              {
+                file: chart.fileId,
+                chart: chart.chartId,
+                request: id,
+                provider: source.provider,
+                revision: source.source.revision,
+              },
+            );
+            setState({ tag: "ready", source });
+          }
+        },
         (error: unknown) => {
-          if (!ctrl.signal.aborted) {
+          if (id === seq && !ctrl.signal.aborted) {
+            console.error(
+              "[veritly-chart:metabase] dashboard chart load failed",
+              {
+                file: chart.fileId,
+                chart: chart.chartId,
+                request: id,
+                error,
+              },
+            );
             setState({ tag: "error", error: reason(error) });
           }
         },
       );
+    };
     setState({ tag: "loading" });
     void load();
-    void watchChart(chart, () => void load(), ctrl.signal);
-    return () => ctrl.abort();
+    void watchChart(
+      chart,
+      () => {
+        console.info(
+          "[veritly-chart:metabase]",
+          "dashboard chart refresh requested",
+          {
+            file: chart.fileId,
+            chart: chart.chartId,
+          },
+        );
+        void load();
+      },
+      ctrl.signal,
+    );
+    return () => {
+      seq++;
+      ctrl.abort();
+      console.info("[veritly-chart:metabase]", "dashboard chart stopped", {
+        file: chart.fileId,
+        chart: chart.chartId,
+      });
+    };
   }, [chart]);
 
   if (state.tag === "error") {
