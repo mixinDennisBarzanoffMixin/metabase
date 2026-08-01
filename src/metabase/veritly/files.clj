@@ -79,7 +79,7 @@
   (let [dash     (api/write-check :model/Dashboard dashboard-id)
         placed   (t2/select [:model/DashboardCard :row :col :size_x :size_y :dashboard_tab_id]
                             :dashboard_id dashboard-id)
-        position (autoplace/get-position-for-new-dashcard placed 6 5 autoplace/default-grid-width)
+        position (autoplace/get-position-for-new-dashcard placed :line)
         card     {:name                   nil
                   :display                "veritlyChart"
                   :visualization_settings {}

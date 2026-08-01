@@ -32,6 +32,6 @@
             (is (= "veritlyChart" (:kind result)))
             (is (= chart (get-in card [:visualization_settings :veritlyChart])))
             (is (= "veritlyChart" (get-in card [:visualization_settings :virtual_card :display])))
-            (is (= [6 5] [(:size_x card) (:size_y card)])))))
+            (is (= [12 6] [(:size_x card) (:size_y card)])))))
       (finally
         (t2/delete! :veritly_project :project_id "chart-test")))))

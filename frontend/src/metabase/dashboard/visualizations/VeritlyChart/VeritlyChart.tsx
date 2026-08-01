@@ -27,8 +27,8 @@ const definition: VisualizationDefinition = {
   canSavePng: false,
   disableSettingsConfig: true,
   noHeader: false,
-  minSize: { width: 3, height: 3 },
-  defaultSize: { width: 6, height: 5 },
+  minSize: { width: 4, height: 3 },
+  defaultSize: { width: 12, height: 6 },
   checkRenderable: () => {},
   settings: {
     "card.title": { dashboard: false, getDefault: () => t`Live chart` },
