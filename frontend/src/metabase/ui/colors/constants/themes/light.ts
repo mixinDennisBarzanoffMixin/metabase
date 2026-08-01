@@ -32,7 +32,7 @@ const deprecatedColors = {
   "background-error": baseColors.lobster[10],
   "background-success": baseColors.palm[5],
   "background-success-secondary": baseColors.palm[20],
-  brand: baseColors.blue[40],
+  brand: "#0066FF",
   "brand-hover": baseColors.brand[50],
   danger: baseColors.lobster[50],
   error: baseColors.lobster[50],
