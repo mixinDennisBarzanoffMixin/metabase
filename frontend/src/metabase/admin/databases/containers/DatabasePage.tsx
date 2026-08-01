@@ -30,6 +30,7 @@ import { trackHelpButtonClick } from "./analytics";
 interface DatabasePageProps {
   params: { databaseId?: string };
   route: Route;
+  onCancel?: () => void;
   onEngineChange?: (engine: string | undefined) => void;
   initial?: {
     engine: string;
@@ -41,6 +42,7 @@ export function DatabasePage({
   params,
   route,
   initial,
+  onCancel,
   onEngineChange,
 }: DatabasePageProps) {
   const engines = useSelector(getEngines);
@@ -57,6 +59,13 @@ export function DatabasePage({
   const handleEngineChange = (engineKey?: string) => {
     setSelectedEngineKey(engineKey as EngineKey);
     onEngineChange?.(engineKey);
+  };
+  const cancel = () => {
+    if (onCancel) {
+      onCancel();
+      return;
+    }
+    handleCancel();
   };
 
   useEffect(() => {
@@ -109,7 +118,7 @@ export function DatabasePage({
               initializeError={databaseReq.error}
               onSubmitted={handleOnSubmit}
               route={route}
-              onCancel={handleCancel}
+              onCancel={cancel}
               config={config}
               formLocation="full-page"
               onEngineChange={handleEngineChange}

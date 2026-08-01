@@ -22,21 +22,29 @@ interface VeritlySourcePageProps {
   route: Route;
 }
 
+type Access = { type: "public" } | { type: "connector"; tunnel: Tunnel };
+
 export function VeritlySourcePage(props: VeritlySourcePageProps) {
   const engines = useSelector(getEngines);
   const [policy] = useState(() => new DatabaseTunnelPolicy());
   const [engine, setEngine] = useState("");
-  const [tunnel, setTunnel] = useState<Tunnel>();
+  const [access, setAccess] = useState<Access>();
   const [context] = useState(() => DatabaseTunnelContext.current());
   const selected = Object.entries(engines).find(([key]) => key === engine)?.[1];
   const found = new URLSearchParams(window.location.search).get("name");
   const name = found ? found : t`Database`;
-  const ready = engine && (!policy.requires(selected) || tunnel);
+  const tunnel = access?.type === "connector" ? access.tunnel : undefined;
+  const ready = engine && (!policy.requires(selected) || access);
   const back = useCallback(() => {
     setEngine("");
-    setTunnel(undefined);
+    setAccess(undefined);
   }, []);
-  const connected = useCallback((details: Tunnel) => setTunnel(details), []);
+  const cancel = useCallback(() => setAccess(undefined), []);
+  const connected = useCallback(
+    (tunnel: Tunnel) => setAccess({ type: "connector", tunnel }),
+    [],
+  );
+  const direct = useCallback(() => setAccess({ type: "public" }), []);
   const idle = useCallback(async () => {}, []);
   useVeritlyFlush("source", idle);
 
@@ -45,12 +53,13 @@ export function VeritlySourcePage(props: VeritlySourcePageProps) {
       <DatabasePage
         {...props}
         initial={{ engine, ...(tunnel ? { details: tunnel } : {}) }}
+        onCancel={access?.type === "public" ? cancel : undefined}
         onEngineChange={(next) => {
           if (!next || next === engine) {
             return;
           }
           setEngine(next);
-          setTunnel(undefined);
+          setAccess(undefined);
         }}
       />
     );
@@ -79,6 +88,7 @@ export function VeritlySourcePage(props: VeritlySourcePageProps) {
                 key={`${context.source}:${engine}`}
                 name={name}
                 onBack={back}
+                onPublic={direct}
                 onReady={connected}
               />
             )}

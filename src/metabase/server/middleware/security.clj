@@ -268,7 +268,7 @@
                                  (when config/is-dev?
                                    (str "ws://*:" cljs-dev-port))
                                  (when config/is-dev?
-                                   "http://*.veritly.svc.cluster.local")]
+                                   "http://*.veritly.svc.cluster.local http://*.veritly.svc.cluster.local:3000")]
                   :manifest-src ["'self'"]
                   :media-src    ["www.metabase.com"]}]
       (format "%s %s; " (name k) (str/join " " vs))))})

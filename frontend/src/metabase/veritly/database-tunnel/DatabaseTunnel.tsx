@@ -27,10 +27,16 @@ import {
 interface DatabaseTunnelProps {
   name: string;
   onBack: () => void;
+  onPublic: () => void;
   onReady: (tunnel: Tunnel) => void;
 }
 
-export function DatabaseTunnel({ name, onBack, onReady }: DatabaseTunnelProps) {
+export function DatabaseTunnel({
+  name,
+  onBack,
+  onPublic,
+  onReady,
+}: DatabaseTunnelProps) {
   const [session, setSession] = useState<{
     model: DatabaseTunnelModel;
     state: TunnelState;
@@ -56,14 +62,14 @@ export function DatabaseTunnel({ name, onBack, onReady }: DatabaseTunnelProps) {
     return (
       <Stack gap="lg" data-testid="database-tunnel">
         <Box>
-          <Title order={2} fz="h3">{t`Connect to the private database`}</Title>
+          <Title order={2} fz="h3">{t`Connect to the database`}</Title>
           <Text c="text-secondary" mt="xs">
-            {t`Run a Veritly connector in the same private network as this database. It connects outbound; the database stays private.`}
+            {t`Connect directly to a publicly accessible database, or run a Veritly connector in the database's private network.`}
           </Text>
         </Box>
         <Flex align="center" justify="center" gap="sm" mih="10rem">
           <Loader size="sm" />
-          <Text c="text-secondary">{t`Waiting for private network access…`}</Text>
+          <Text c="text-secondary">{t`Checking available connectors…`}</Text>
         </Flex>
         {session?.state.error && (
           <Alert color="error" icon={<Icon name="warning" />}>
@@ -80,9 +86,9 @@ export function DatabaseTunnel({ name, onBack, onReady }: DatabaseTunnelProps) {
   return (
     <Stack gap="lg" data-testid="database-tunnel">
       <Box>
-        <Title order={2} fz="h3">{t`Connect to the private database`}</Title>
+        <Title order={2} fz="h3">{t`Connect to the database`}</Title>
         <Text c="text-secondary" mt="xs">
-          {t`Run a Veritly connector in the same private network as this database. It connects outbound; the database stays private.`}
+          {t`Connect directly to a publicly accessible database, or run a Veritly connector in the database's private network.`}
         </Text>
       </Box>
 
@@ -117,6 +123,15 @@ export function DatabaseTunnel({ name, onBack, onReady }: DatabaseTunnelProps) {
       {state.view === "technology" && (
         <Stack gap="md">
           <Text fw="bold">{t`Where does the database run?`}</Text>
+          <Button
+            variant="default"
+            justify="space-between"
+            rightSection={<Icon name="chevronright" />}
+            onClick={onPublic}
+            disabled={state.busy}
+          >
+            {t`Publicly accessible`}
+          </Button>
           <Button
             variant="default"
             justify="space-between"

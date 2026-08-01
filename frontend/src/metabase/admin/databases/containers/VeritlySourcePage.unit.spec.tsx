@@ -82,7 +82,7 @@ describe("VeritlySourcePage", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Connect to the private database",
+        name: "Connect to the database",
       }),
     ).toBeInTheDocument();
     driver.dispose();
@@ -97,6 +97,30 @@ describe("VeritlySourcePage", () => {
     expect(await screen.findByLabelText("Database type")).toHaveValue(
       "Snowflake",
     );
+    driver.dispose();
+  });
+
+  it("skips connector setup for a publicly accessible database", async () => {
+    const driver = setup();
+
+    await userEvent.click(screen.getByRole("option", { name: "PostgreSQL" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Publicly accessible/ }),
+    );
+
+    expect(screen.queryByTestId("database-tunnel")).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("Database type")).toHaveValue(
+      "PostgreSQL",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(
+      await screen.findByText("Where does the database run?"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Publicly accessible/ }),
+    ).toBeInTheDocument();
     driver.dispose();
   });
 });

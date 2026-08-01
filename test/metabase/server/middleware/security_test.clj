@@ -34,6 +34,12 @@
       (is (not (str/includes? (csp-directive "script-src") "sha256")))
       (is (str/includes? (csp-directive "script-src") "'unsafe-inline'")))))
 
+(deftest csp-header-connect-src-tests
+  (testing "Veritly control plane is allowed on its local cluster port"
+    (with-redefs [config/is-dev? true]
+      (is (str/includes? (csp-directive "connect-src")
+                         "http://*.veritly.svc.cluster.local:3000")))))
+
 (deftest csp-header-frame-ancestor-tests
   (mt/with-premium-features #{:embedding}
     (testing "Frame ancestors from `embedding-app-origin` setting"
