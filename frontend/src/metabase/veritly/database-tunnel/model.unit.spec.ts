@@ -61,7 +61,7 @@ describe("DatabaseTunnelModel", () => {
         pairing: "vp_pairing_code_which_is_long_enough",
         expires: Date.now() + 60_000,
         gateway: "wss://connect.veritly.co.uk/agent",
-        image: "ghcr.io/veritly/connector:latest",
+        image: "public.ecr.aws/o9t7p6d0/veritly/connector:latest",
       }),
       route: async (id: string) => {
         routes.push(id);

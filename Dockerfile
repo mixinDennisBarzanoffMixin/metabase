@@ -32,9 +32,24 @@ RUN npm install -g bun
 # install frontend dependencies
 RUN bun install --frozen-lockfile
 
+RUN mkdir -p packages/metabase/node_modules \
+    && rm -rf packages/metabase/node_modules/.bun \
+    && ln -s /home/node/node_modules/.bun packages/metabase/node_modules/.bun
+
 WORKDIR /home/node/packages/metabase
 
-RUN INTERACTIVE=false CI=true MB_EDITION=$MB_EDITION bin/build.sh :version ${VERSION}
+RUN --mount=type=cache,target=/root/.m2 \
+    --mount=type=cache,target=/root/.gitlibs \
+    INTERACTIVE=false CI=true \
+    MB_EDITION=$MB_EDITION \
+    MB_CLJS_DEVTOOLS_URL=http://localhost:9630 \
+    FRONTEND_PUBLIC_ONLYOFFICE_BACKEND_URL=https://onlyoffice-backend.veritly.co.uk \
+    bin/build.sh :steps '[:version :translations :frontend]' :version "\"${VERSION}\""
+
+RUN --mount=type=cache,target=/root/.m2 \
+    --mount=type=cache,target=/root/.gitlibs \
+    INTERACTIVE=false CI=true MB_EDITION=$MB_EDITION \
+    bin/build.sh :steps '[:licenses :python :uberjar]'
 
 # ###################
 # # STAGE 2: runner
