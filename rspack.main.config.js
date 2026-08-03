@@ -33,8 +33,9 @@ const {
 const { SVGO_CONFIG } = require("./frontend/build/shared/rspack/svgo-config");
 
 const SRC_PATH = __dirname + "/frontend/src/metabase";
+const shouldUseDevAssets = ["hot", "watch"].includes(WEBPACK_BUNDLE);
 const BUILD_PATH =
-  WEBPACK_BUNDLE === "hot"
+  shouldUseDevAssets
     ? __dirname + "/target/classes/frontend_client"
     : __dirname + "/resources/frontend_client";
 
@@ -338,7 +339,7 @@ const config = {
   ],
 };
 
-if (shouldEnableHotRefresh) {
+if (shouldUseDevAssets) {
   config.target = "web";
 
   if (!config.output || !config.plugins) {
@@ -358,6 +359,15 @@ if (shouldEnableHotRefresh) {
   // Disable lazy compilation explicitly to match behavior of rspack 1.x
   config.lazyCompilation = false;
 
+  config.watchOptions = {
+    // Shadow's live reload does not work. I assume it could be related to rspack migration.  Namely, the compiled cljs
+    // is loaded on save. On page reload however, the compiled cljs that was used on rspack initialization is used
+    // again. The following exception fixes that, for the cost of always reloading the page when compiled cljs changes.
+    ignored: ["**/node_modules" /*, CLJS_SRC_PATH_DEV + "/**" */],
+  };
+}
+
+if (shouldEnableHotRefresh) {
   config.devServer = {
     port: PORT, // make the port explicit so it errors if it's already in use
     compress: true,
@@ -401,13 +411,6 @@ if (shouldEnableHotRefresh) {
       publicPath: "/app/dist/",
     },
     host: "0.0.0.0",
-  };
-
-  config.watchOptions = {
-    // Shadow's live reload does not work. I assume it could be related to rspack migration.  Namely, the compiled cljs
-    // is loaded on save. On page reload however, the compiled cljs that was used on rspack initialization is used
-    // again. The following exception fixes that, for the cost of always reloading the page when compiled cljs changes.
-    ignored: ["**/node_modules" /*, CLJS_SRC_PATH_DEV + "/**" */],
   };
 
   config.plugins.unshift(
