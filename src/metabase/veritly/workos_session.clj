@@ -1,12 +1,9 @@
 (ns metabase.veritly.workos-session
   "Direct WorkOS sealed-session support for Veritly-hosted Metabase."
   (:require
-   [buddy.core.keys :as keys]
-   [buddy.sign.jwt :as jwt]
    [cheshire.core :as cheshire]
    [clj-http.client :as http]
    [clojure.string :as str]
-   [java-time.api :as t]
    [metabase.request.current :as current]
    [metabase.request.util :as request.util]
    [metabase.util.json :as json]
@@ -25,9 +22,7 @@
 (def ^:private prefix "Fe26.2")
 (def ^:private suffix "~2")
 (def ^:private workos "https://api.workos.com")
-(def ^:private ttl 3600000)
 (def ^:private rng (SecureRandom.))
-(def ^:private jwks (atom {}))
 
 (defn session-cookie
   [request]
@@ -158,49 +153,17 @@
   [token n]
   (json/decode+kw (text (unb64 (jwt-part token n)))))
 
-(defn- alg
-  [header key]
-  (let [raw (if (seq (:alg key)) (:alg key) (:alg header))]
-    (when-not (seq raw)
-      (throw (ex-info "Unsupported WorkOS JWT algorithm" {:alg raw})))
-    (let [value (keyword (str/lower-case raw))]
-      (when (= value :none)
-        (throw (ex-info "Unsupported WorkOS JWT algorithm" {:alg raw})))
-      value)))
-
-(defn- expired?
-  [row]
-  (> (- (t/to-millis-from-epoch (t/instant)) (:time row)) ttl))
-
-(defn- get-jwks
-  [client]
-  (let [row (get @jwks client)]
-    (if (and row (not (expired? row)))
-      (:keys row)
-      (let [res (http/get (str workos "/sso/jwks/" client)
-                          {:accept :json
-                           :as :json
-                           :conn-timeout 5000
-                           :socket-timeout 5000
-                           :throw-exceptions false})]
-        (when-not (= 200 (:status res))
-          (throw (ex-info "WorkOS JWKS fetch failed" {:status (:status res)})))
-        (swap! jwks assoc client {:keys (:body res)
-                                  :time (t/to-millis-from-epoch (t/instant))})
-        (:body res)))))
-
-(defn- verify
-  [token client]
+(defn- fresh?
+  [token]
+  ;; The encrypted seal has already authenticated this token with COOKIE_PASSWORD. Checking the embedded expiry is
+  ;; sufficient here and avoids turning every cold browser request into a blocking WorkOS JWKS request.
   (try
-    (let [header (jwt-json token 0)
-          kid (:kid header)
-          key (some #(when (= kid (:kid %)) %) (:keys (get-jwks client)))]
-      (when key
-        (jwt/unsign token (keys/jwk->public-key key) {:alg (alg header key)
-                                                      :leeway 60})))
+    (let [exp (:exp (jwt-json token 1))]
+      (and (number? exp)
+           (> (long exp) (+ (quot (System/currentTimeMillis) 1000) 30))))
     (catch Exception e
-      (log/debugf e "WorkOS access token failed verification")
-      nil)))
+      (log/debugf e "WorkOS access token payload is invalid")
+      false)))
 
 (defn- body
   [cfg data request]
@@ -254,14 +217,16 @@
 (defn authenticate
   [request]
   (when-let [sealed (session-cookie request)]
-    (let [cfg {:client (env "WORKOS_CLIENT_ID")
-               :key (env "WORKOS_API_KEY")
-               :secret (secret)}
-          data (unseal sealed (:secret cfg))]
+    (let [secret (secret)
+          data (unseal sealed secret)]
       (when (:accessToken data)
-        (if (verify (:accessToken data) (:client cfg))
+        (if (fresh? (:accessToken data))
           data
-          (refreshed cfg data request))))))
+          (refreshed {:client (env "WORKOS_CLIENT_ID")
+                      :key (env "WORKOS_API_KEY")
+                      :secret secret}
+                     data
+                     request))))))
 
 (defn- host
   [request]

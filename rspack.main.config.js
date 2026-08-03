@@ -33,7 +33,10 @@ const {
 const { SVGO_CONFIG } = require("./frontend/build/shared/rspack/svgo-config");
 
 const SRC_PATH = __dirname + "/frontend/src/metabase";
-const BUILD_PATH = __dirname + "/resources/frontend_client";
+const BUILD_PATH =
+  WEBPACK_BUNDLE === "hot"
+    ? __dirname + "/target/classes/frontend_client"
+    : __dirname + "/resources/frontend_client";
 
 // For sharing the embedding snippets in the docs with the embedding
 // onboarding flow in the app to keep the snippets always in sync.
@@ -357,6 +360,7 @@ if (shouldEnableHotRefresh) {
 
   config.devServer = {
     port: PORT, // make the port explicit so it errors if it's already in use
+    compress: true,
     hot: true,
     client: {
       progress: false,
@@ -391,6 +395,10 @@ if (shouldEnableHotRefresh) {
       // }
       // if you want to reduce stats noise
       // stats: 'minimal' // values: none, errors-only, minimal, normal, verbose
+    },
+    static: {
+      directory: BUILD_PATH + "/app/dist",
+      publicPath: "/app/dist/",
     },
     host: "0.0.0.0",
   };

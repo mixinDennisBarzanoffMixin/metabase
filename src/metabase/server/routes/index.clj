@@ -76,7 +76,10 @@
 
 (defn- load-template [path variables]
   (try
-    (stencil/render-file path variables)
+    (let [target (io/file "target/classes" path)]
+      (if (and config/is-dev? (.isFile target))
+        (stencil/render-string (slurp target) variables)
+        (stencil/render-file path variables)))
     (catch IllegalArgumentException e
       (let [message (trs "Failed to load template ''{0}''. Did you remember to build the Metabase frontend?" path)]
         (log/error e message)
