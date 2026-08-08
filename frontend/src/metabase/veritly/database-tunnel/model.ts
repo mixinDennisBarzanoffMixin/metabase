@@ -77,6 +77,7 @@ type Port = {
   pair(platform: Platform, name: string): Promise<z.infer<typeof Pair>>;
   route(connector: string): Promise<z.infer<typeof Route>>;
   watch(watch: Watch): () => void;
+  dispose(): void;
 };
 
 export class DatabaseTunnelContext {
@@ -112,7 +113,9 @@ export class DatabaseTunnelPolicy {
   }
 }
 
-class DatabaseTunnelGateway implements Port {
+export class DatabaseTunnelGateway implements Port {
+  readonly #abort = new AbortController();
+
   constructor(
     private readonly cfg: z.infer<typeof Context>,
     private readonly request: typeof fetch = fetch.bind(globalThis),
@@ -155,6 +158,9 @@ class DatabaseTunnelGateway implements Port {
   }
 
   watch(watch: Watch) {
+    if (this.#abort.signal.aborted) {
+      return () => {};
+    }
     const events = new this.events(
       this.url(
         `/connector/source/${encodeURIComponent(this.cfg.source)}/events`,
@@ -172,13 +178,23 @@ class DatabaseTunnelGateway implements Port {
         () => undefined,
       );
     };
-    return () => events.close();
+    const close = () => events.close();
+    this.#abort.signal.addEventListener("abort", close, { once: true });
+    return () => {
+      this.#abort.signal.removeEventListener("abort", close);
+      close();
+    };
+  }
+
+  dispose() {
+    this.#abort.abort();
   }
 
   private async send(path: string, init?: RequestInit) {
     const res = await this.request(this.url(path), {
       credentials: "include",
       ...init,
+      signal: this.#abort.signal,
     });
     const text = await res.text();
     const data: unknown = text ? JSON.parse(text) : undefined;
@@ -249,6 +265,9 @@ export class DatabaseTunnelModel {
       this.#later(() => void this.start());
       return;
     }
+    if (this.#closed) {
+      return;
+    }
     this.#apply(loaded.setup, loaded.connectors, true);
     this.#stop = this.api.watch((setup) => this.#apply(setup));
   }
@@ -281,6 +300,9 @@ export class DatabaseTunnelModel {
       },
     );
     if (!paired) {
+      return;
+    }
+    if (this.#closed) {
       return;
     }
     this.#set({
@@ -318,6 +340,7 @@ docker run -d --name veritly-connector \\
     this.#closed = true;
     this.#stop?.();
     this.#stop = undefined;
+    this.api.dispose();
     if (this.#retry) {
       clearTimeout(this.#retry);
     }
@@ -356,7 +379,12 @@ docker run -d --name veritly-connector \\
   }
 
   async #connect(connector: Connector) {
-    if (this.#routing || this.state.tunnel || !this.#live(connector)) {
+    if (
+      this.#closed ||
+      this.#routing ||
+      this.state.tunnel ||
+      !this.#live(connector)
+    ) {
       return;
     }
     this.#routing = true;
@@ -369,6 +397,9 @@ docker run -d --name veritly-connector \\
       },
     );
     this.#routing = false;
+    if (this.#closed) {
+      return;
+    }
     if (!route) {
       this.#set({ view: this.state.pairing ? "deploy" : "existing" });
       this.#later(() => {
@@ -409,6 +440,9 @@ docker run -d --name veritly-connector \\
   }
 
   #later(run: () => void) {
+    if (this.#closed) {
+      return;
+    }
     if (this.#retry) {
       clearTimeout(this.#retry);
     }

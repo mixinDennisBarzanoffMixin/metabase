@@ -2,6 +2,7 @@ import type { Engine } from "metabase-types/api";
 
 import {
   type Connector,
+  DatabaseTunnelGateway,
   DatabaseTunnelModel,
   DatabaseTunnelPolicy,
 } from "./model";
@@ -80,6 +81,7 @@ describe("DatabaseTunnelModel", () => {
         update = watch;
         return () => {};
       },
+      dispose: () => {},
     };
     const model = new DatabaseTunnelModel("Orders", api);
 
@@ -140,6 +142,7 @@ describe("DatabaseTunnelModel", () => {
         update = watch;
         return () => {};
       },
+      dispose: () => {},
     };
     const model = new DatabaseTunnelModel("Orders", api);
 
@@ -158,5 +161,72 @@ describe("DatabaseTunnelModel", () => {
     expect(attempts).toBe(2);
     expect(model.state.tunnel?.["veritly-route"]).toBe(source);
     model.dispose();
+  });
+
+  it("does not open an event stream after closing during startup", async () => {
+    let resolve!: (value: readonly Connector[]) => void;
+    let watched = false;
+    let disposed = false;
+    const api = {
+      list: () =>
+        new Promise<readonly Connector[]>((done) => {
+          resolve = done;
+        }),
+      setup: async () => ({ source: { id: source } }),
+      pair: async () => {
+        throw new Error("unused");
+      },
+      route: async () => {
+        throw new Error("unused");
+      },
+      watch: () => {
+        watched = true;
+        return () => {};
+      },
+      dispose: () => {
+        disposed = true;
+      },
+    };
+    const model = new DatabaseTunnelModel("Orders", api);
+    const started = model.start();
+
+    model.dispose();
+    resolve([]);
+    await started;
+
+    expect(disposed).toBe(true);
+    expect(watched).toBe(false);
+  });
+});
+
+describe("DatabaseTunnelGateway", () => {
+  it("aborts requests and closes streams when disposed", async () => {
+    let signal: AbortSignal | null = null;
+    const close = jest.fn();
+    const request = ((_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        signal = init?.signal ?? null;
+        signal?.addEventListener("abort", () => reject(signal?.reason));
+      })) as typeof fetch;
+    class Events {
+      onmessage: ((event: MessageEvent) => void) | null = null;
+
+      close() {
+        close();
+      }
+    }
+    const api = new DatabaseTunnelGateway(
+      { api: "http://opencode-api.example:3000", source },
+      request,
+      Events as unknown as typeof EventSource,
+    );
+    const pending = api.list();
+    api.watch(() => {});
+
+    api.dispose();
+
+    expect(signal?.aborted).toBe(true);
+    expect(close).toHaveBeenCalledTimes(1);
+    await expect(pending).rejects.toBeDefined();
   });
 });
