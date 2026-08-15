@@ -3,7 +3,7 @@
    how these work. `/api/` routes are in [[metabase.api-routes.routes]]."
   (:require
    [clojure.string :as str]
-   [compojure.core :as compojure :refer #_{:clj-kondo/ignore [:discouraged-var]} [context defroutes DELETE GET OPTIONS PATCH POST]]
+   [compojure.core :as compojure :refer #_{:clj-kondo/ignore [:discouraged-var]} [context defroutes DELETE GET OPTIONS PATCH POST PUT]]
    [compojure.route :as route]
    [metabase.api.macros :as api.macros]
    [metabase.api.common :as api]
@@ -21,6 +21,7 @@
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
    [metabase.veritly.files :as veritly.files]
+   [metabase.veritly.managed-source :as managed-source]
    [metabase.veritly.project-context :as project]
    [metabase.veritly.projects :as veritly.projects]
    [ring.util.response :as response]))
@@ -200,9 +201,20 @@
     (DELETE "/api/veritly/files/:kind/:id" [kind id]
       (api/check-403 api/*current-user-id*)
       {:status 200 :body (veritly.projects/remove-file! kind (Long/parseLong id))})
+    (PUT "/api/veritly/managed-source" request
+      (managed-source/check-token! request)
+      {:status 200 :body (managed-source/upsert! (:body request))})
+    (DELETE "/api/veritly/managed-source" request
+      (managed-source/check-token! request)
+      {:status 200 :body (managed-source/remove!)})
+    (DELETE "/api/veritly/managed-source/project" request
+      (managed-source/check-token! request)
+      {:status 200 :body (managed-source/cleanup!)})
     (POST "/api/veritly/question" request
       (api/check-403 api/*current-user-id*)
-      {:status 200 :body (veritly.files/create-question! (get-in request [:body :name]))})
+      {:status 200
+       :body   (veritly.files/create-question! (get-in request [:body :name])
+                                                (get-in request [:body :tableId]))})
     (POST "/api/veritly/dashboard/:dashboard-id/chart" [dashboard-id :as request]
       (api/check-403 api/*current-user-id*)
       {:status 200

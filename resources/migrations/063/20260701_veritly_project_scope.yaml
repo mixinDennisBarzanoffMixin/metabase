@@ -121,3 +121,32 @@ databaseChangeLog:
         - dropForeignKeyConstraint:
             baseTableName: veritly_project_database
             constraintName: fk_veritly_project_database_project_id
+
+  - changeSet:
+      id: v63.2026-08-15T00:00:00
+      author: veritly
+      comment: Classify Veritly project database bindings and retain their virtual file paths
+      changes:
+        - addColumn:
+            tableName: veritly_project_database
+            columns:
+              - column:
+                  name: source_kind
+                  type: varchar(32)
+                  defaultValue: external
+                  remarks: Whether the source is user-connected or managed by the Veritly data service
+                  constraints:
+                    nullable: false
+              - column:
+                  name: file_path
+                  type: varchar(512)
+                  remarks: Stable Veritly virtual file path for managed sources
+                  constraints:
+                    nullable: true
+      rollback:
+        - dropColumn:
+            tableName: veritly_project_database
+            columnName: file_path
+        - dropColumn:
+            tableName: veritly_project_database
+            columnName: source_kind

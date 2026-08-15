@@ -86,14 +86,47 @@
                                       :from   [:veritly_project_database]
                                       :where  [:= :project_id project-id]}]]})))
 
-(defn bind-database!
+(defn managed-database?
   [database-id]
-  (let [project-id (context/require-project-id)]
-    (root-collection-id!)
-    (when-not (database-in-project? database-id)
-      (t2/insert! :veritly_project_database
-                  {:project_id  project-id
-                   :database_id database-id}))))
+  (t2/exists? :veritly_project_database
+              :database_id database-id
+              :source_kind "managed"))
+
+(defn ensure-unmanaged!
+  [database-id]
+  (when (managed-database? database-id)
+    (throw (ex-info "Managed Veritly sources can only be changed by the data service."
+                    {:status-code 409
+                     :database-id database-id}))))
+
+(defn bind-database!
+  ([database-id]
+   (bind-database! database-id {:source-kind "external" :file-path nil}))
+  ([database-id {:keys [source-kind file-path]}]
+   (when-not (#{"external" "managed"} source-kind)
+     (throw (ex-info "Invalid Veritly source kind."
+                     {:source-kind source-kind})))
+   (when (and (= source-kind "managed")
+              (not (and (string? file-path) (seq file-path))))
+     (throw (ex-info "Managed Veritly sources require a file path."
+                     {:file-path file-path})))
+   (let [project-id (context/require-project-id)]
+     (root-collection-id!)
+     (if (database-in-project? database-id)
+       (t2/update! :veritly_project_database
+                   {:project_id project-id :database_id database-id}
+                   {:source_kind source-kind :file_path file-path})
+       (t2/insert! :veritly_project_database
+                   {:project_id  project-id
+                    :database_id database-id
+                    :source_kind source-kind
+                    :file_path   file-path})))))
+
+(defn managed-binding
+  []
+  (t2/select-one :veritly_project_database
+                 :project_id (context/require-project-id)
+                 :source_kind "managed"))
 
 (defn database-filter-clause
   [column]
@@ -171,8 +204,13 @@
         databases  (for [row (t2/select :veritly_project_database :project_id project-id)
                          :let [database (t2/select-one :model/Database :id (:database_id row))]
                          :when database]
-                     (assoc (file-row "source" (:id database) (:name database) ".source")
-                            :databaseId (str (:id database))))]
+                     (let [kind (:source_kind row)]
+                       (cond-> (assoc (file-row "source" (:id database) (:name database) ".source")
+                                      :databaseId (str (:id database))
+                                      :sourceKind kind
+                                      :filePath (:file_path row)
+                                      :managed (= kind "managed"))
+                         (:file_path row) (assoc :path (:file_path row)))))]
     {:files (vec (concat databases cards dashboards))}))
 
 (defn rename-file!
@@ -215,6 +253,10 @@
   []
   (let [project-id (context/require-project-id)
         root-id    (t2/select-one-fn :root_collection_id :veritly_project :project_id project-id)]
+    (when (managed-binding)
+      (throw (ex-info "The data service must remove the managed source before Metabase project cleanup."
+                      {:status-code 409
+                       :project-id project-id})))
     (when root-id
       (let [ids      (collection-ids root-id)
             folders  (t2/select :model/Collection

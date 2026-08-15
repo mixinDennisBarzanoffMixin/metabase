@@ -46,6 +46,13 @@
 (use-fixtures :once (fixtures/initialize :db))
 (use-fixtures :once ssh-test/do-with-mock-servers)
 
+(deftest managed-source-pool-is-bounded-test
+  (mt/with-temp [:model/Database database {:engine   :h2
+                                           :details  {:db "mem:managed_pool_test"}
+                                           :settings {:connection-pool-size 3}}]
+    (is (= 3 (get (sql-jdbc.conn/data-warehouse-connection-pool-properties :h2 database)
+                  "maxPoolSize")))))
+
 ;;; this is mostly testing [[h2/*allow-testing-h2-connections*]] so it's ok to hardcode driver names below.
 #_{:clj-kondo/ignore [:metabase/disallow-hardcoded-driver-names-in-tests]}
 (deftest ^:parallel can-connect-with-details?-test

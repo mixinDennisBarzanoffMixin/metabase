@@ -1134,6 +1134,7 @@
     (throw (ex-info (tru "admin-connection must not be set in details")
                     {:status-code 400})))
   (let [existing-database               (api/write-check (t2/select-one :model/Database :id id))
+        _                               (veritly.projects/ensure-unmanaged! id)
         ;; e2e tests run against the H2 sample database and need to toggle its settings (actions,
         ;; table editing), so the guard is lifted when test endpoints are enabled
         _                               (when (and (:is_sample existing-database)
@@ -1268,6 +1269,7 @@
   (api/check-superuser)
   (t2/with-transaction [_conn]
     (api/let-404 [db (t2/select-one :model/Database :id id)]
+      (veritly.projects/ensure-unmanaged! id)
       (api/check-403 (mi/can-write? db))
       (t2/delete! :model/Database :router_database_id id)
       (database-routing/delete-associated-database-router! id)

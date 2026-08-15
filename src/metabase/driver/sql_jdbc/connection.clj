@@ -88,6 +88,14 @@
             :catalog)
    details))
 
+(defn- pool-size
+  [database]
+  (let [limit  (driver.settings/jdbc-data-warehouse-max-connection-pool-size)
+        custom (get-in database [:settings :connection-pool-size])]
+    (if (and (int? custom) (pos? custom) (<= custom limit))
+      custom
+      limit)))
+
 (defmethod data-warehouse-connection-pool-properties :default
   [driver database]
   {;; only fetch one new connection at a time, rather than batching fetches (default = 3 at a time). This is done in
@@ -104,7 +112,7 @@
    ;; wake them up to keep a connection open (#58373).
    "minPoolSize"                          0
    "initialPoolSize"                      0
-   "maxPoolSize"                          (driver.settings/jdbc-data-warehouse-max-connection-pool-size)
+   "maxPoolSize"                          (pool-size database)
    ;; [From dox] If true, an operation will be performed at every connection checkout to verify that the connection is
    ;; valid. [...] ;; Testing Connections in checkout is the simplest and most reliable form of Connection testing,
    ;; but for better performance, consider verifying connections periodically using `idleConnectionTestPeriod`. [...]

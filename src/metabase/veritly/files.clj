@@ -13,23 +13,37 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- table
+(defn- tables
   []
   (let [project-id (context/require-project-id)]
-    (t2/select-one [:model/Table :id :db_id]
-                   {:where    [:and
-                               [:= :active true]
-                               [:in :db_id {:select [:database_id]
-                                            :from   [:veritly_project_database]
-                                            :where  [:= :project_id project-id]}]]
-                    :order-by [[:db_id :asc] [:schema :asc] [:name :asc] [:id :asc]]})))
+    (t2/select [:model/Table :id :db_id]
+               {:where    [:and
+                            [:= :active true]
+                            [:in :db_id {:select [:database_id]
+                                         :from   [:veritly_project_database]
+                                         :where  [:= :project_id project-id]}]]
+                :order-by [[:db_id :asc] [:schema :asc] [:name :asc] [:id :asc]]})))
+
+(defn- question-table
+  [table-id]
+  (let [available (tables)]
+    (when-not (seq available)
+      (throw (ex-info "No synced table exists for this Veritly project."
+                      {:status-code 409})))
+    (if table-id
+      (or (some #(when (= (:id %) table-id) %) available)
+          (throw (ex-info "The selected table is outside the current Veritly project or is inactive."
+                          {:status-code 404 :table-id table-id})))
+      (if (= 1 (count available))
+        (first available)
+        (throw (ex-info "tableId is required when a Veritly project has multiple synced tables."
+                        {:status-code 400
+                         :table-count (count available)}))))))
 
 (defn create-question!
-  [name]
+  [name table-id]
   (let [title (str/trim (str (or name "")))
-        table (or (table)
-                  (throw (ex-info "No synced table exists for this Veritly project."
-                                  {:status-code 409})))
+        table (question-table table-id)
         card  (queries/create-card!
                {:name                   (if (seq title) title "Question")
                 :display                "table"
