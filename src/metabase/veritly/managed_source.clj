@@ -52,7 +52,7 @@
 
 (defn- token
   []
-  (let [value (System/getenv "VERITLY_CONTROL_TOKEN")]
+  (let [value (System/getenv "VERITLY_DATA_CONTROL_TOKEN")]
     (when value (not-empty (str/trim value)))))
 
 (defn- encoded
@@ -77,7 +77,7 @@
   "Reject an unavailable or invalid Veritly control token."
   [request]
   (when-not (token)
-    (throw (ex-info "VERITLY_CONTROL_TOKEN is not configured."
+    (throw (ex-info "VERITLY_DATA_CONTROL_TOKEN is not configured."
                     {:status-code 503})))
   (when-not (authorized? request)
     (throw (ex-info "Invalid Veritly service token."
