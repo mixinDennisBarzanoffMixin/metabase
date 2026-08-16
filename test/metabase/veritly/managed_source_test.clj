@@ -32,12 +32,14 @@
                           #"filePath must end in .source"
                           (source/upsert! {:name "Project Data"
                                            :filePath "Project Data"
-                                           :details {}}))))
+                                           :details {}
+                                           :tables []}))))
   (testing "connection details are required"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
-                          #"details is required"
+                          #"Managed source payload is invalid"
                           (source/upsert! {:name "Project Data"
-                                           :filePath "Project Data.source"})))))
+                                           :filePath "Project Data.source"
+                                           :tables []})))))
 
 (deftest managed-source-upsert-is-idempotent-test
   (mt/with-temp [:model/Collection {collection-id :id} {:name "Managed source upsert test"}]
@@ -47,10 +49,12 @@
         (mt/with-dynamic-fn-redefs [warehouses/test-connection-details (fn [_ details] details)]
           (let [first  (source/upsert! {:name "Project Data"
                                         :filePath "Project Data.source"
-                                        :details {:host "data" :port 5432 :dbname "first"}})
+                                        :details {:host "data" :port 5432 :dbname "first"}
+                                        :tables []})
                 second (source/upsert! {:name "Project Data"
                                         :filePath "Project Data.source"
-                                        :details {:host "data" :port 5432 :dbname "second"}})]
+                                        :details {:host "data" :port 5432 :dbname "second"}
+                                        :tables []})]
             (is (= (:databaseId first) (:databaseId second)))
             (is (= 1 (t2/count :veritly_project_database
                                :project_id "managed-upsert-test"
@@ -82,6 +86,7 @@
                              :keys ["amount"]
                              :columns [{:name "amount" :displayName "Revenue"}
                                        {:name "customer_id"
+                                        :displayName "Customer ID"
                                         :target {:schema "sales" :table "customers" :column "id"}}]}])))
       (is (= "Orders" (t2/select-one-fn :display_name :model/Table :id (:id table))))
       (is (= :hidden (t2/select-one-fn :visibility_type :model/Table :id (:id internal))))

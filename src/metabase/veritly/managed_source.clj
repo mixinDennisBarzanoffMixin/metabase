@@ -2,6 +2,7 @@
   "Service-owned lifecycle for the managed PostgreSQL source in a Veritly project."
   (:require
    [clojure.string :as str]
+   [malli.core :as mc]
    [metabase.app-db.cluster-lock :as lock]
    [metabase.config.core :as config]
    [metabase.events.core :as events]
@@ -16,9 +17,43 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private name-schema
+  [:and [:string {:min 1 :max 254}] [:fn #(seq (str/trim %))]])
+
+(def ^:private text-schema
+  [:and [:string {:min 1 :max 128}] [:fn #(seq (str/trim %))]])
+
+(def ^:private target-schema
+  [:map {:closed true}
+   [:schema text-schema]
+   [:table text-schema]
+   [:column text-schema]])
+
+(def ^:private column-schema
+  [:map {:closed true}
+   [:name text-schema]
+   [:displayName text-schema]
+   [:target {:optional true} target-schema]])
+
+(def ^:private table-schema
+  [:map {:closed true}
+   [:schema text-schema]
+   [:table text-schema]
+   [:displayName text-schema]
+   [:columns [:vector column-schema]]
+   [:keys [:vector text-schema]]])
+
+(def ^:private input-schema
+  [:map {:closed true}
+   [:name name-schema]
+   [:filePath [:and [:string {:min 1 :max 512}] [:fn #(seq (str/trim %))]]]
+   [:details :map]
+   [:tables [:vector table-schema]]])
+
 (defn- token
   []
-  (some-> (System/getenv "VERITLY_CONTROL_TOKEN") str/trim not-empty))
+  (let [value (System/getenv "VERITLY_CONTROL_TOKEN")]
+    (when value (not-empty (str/trim value)))))
 
 (defn- encoded
   [value]
@@ -48,31 +83,22 @@
     (throw (ex-info "Invalid Veritly service token."
                     {:status-code 401}))))
 
-(defn- required-text
-  [body key limit]
-  (let [value (get body key)]
-    (when-not (and (string? value)
-                   (seq (str/trim value))
-                   (<= (count value) limit))
-      (throw (ex-info (str (name key) " is required.")
-                      {:status-code 400 :field key})))
-    value))
+(defn- validate!
+  [schema value message]
+  (when-not (mc/validate schema value)
+    (throw (ex-info message {:status-code 400})))
+  value)
 
 (defn- input
   [body]
-  (let [name    (required-text body :name 254)
-        path    (required-text body :filePath 512)
+  (let [value   (validate! input-schema body "Managed source payload is invalid.")
+        name    (:name value)
+        path    (:filePath value)
         details (:details body)
         tables  (:tables body)]
     (when-not (str/ends-with? path ".source")
       (throw (ex-info "filePath must end in .source."
                       {:status-code 400 :field :filePath})))
-    (when-not (map? details)
-      (throw (ex-info "details is required."
-                      {:status-code 400 :field :details})))
-    (when-not (or (nil? tables) (vector? tables))
-      (throw (ex-info "tables must be an array."
-                      {:status-code 400 :field :tables})))
     {:name name :path path :details details :tables tables}))
 
 (def ^:private system-fields
@@ -80,52 +106,39 @@
 
 (defn- table-input
   [value]
-  (when-not (map? value)
-    (throw (ex-info "Each managed table must be an object."
-                    {:status-code 400})))
-  (let [schema  (required-text value :schema 128)
-        table   (required-text value :table 128)
-        display (or (:displayName value) table)
-        columns (or (:columns value) [])
-        keys    (set (or (:keys value) []))]
-    (when-not (and (string? display) (seq (str/trim display)))
-      (throw (ex-info "Managed table displayName must be text."
-                      {:status-code 400})))
-    (when-not (and (vector? columns) (every? map? columns))
-      (throw (ex-info "Managed table columns must be an array of objects."
-                      {:status-code 400})))
-    {:schema schema :table table :display display :columns columns :keys keys}))
+  (let [table (validate! table-schema value "Managed table payload is invalid.")]
+    {:schema (:schema table)
+     :table (:table table)
+     :display (:displayName table)
+     :columns (:columns table)
+     :keys (set (:keys table))}))
 
 (defn- field-input
   [table value]
-  (let [name    (required-text value :name 128)
-        display (or (:displayName value) name)
-        target  (:target value)]
-    (when-not (and (string? display) (seq (str/trim display)))
-      (throw (ex-info "Managed column displayName must be text."
-                      {:status-code 400 :column name})))
-    (when-not (or (nil? target) (map? target))
-      (throw (ex-info "Managed column target must be an object."
-                      {:status-code 400 :column name})))
+  (let [column (validate! column-schema value "Managed column payload is invalid.")
+        name   (:name column)
+        target (:target column)]
     {:name name
-     :display display
+     :display (:displayName column)
      :primary (contains? (:keys table) name)
      :target (when target
-               {:schema (required-text target :schema 128)
-                :table  (required-text target :table 128)
-                :column (required-text target :column 128)})}))
+               {:schema (:schema target)
+                :table  (:table target)
+                :column (:column target)})}))
 
 (defn- table-record
   [database {:keys [schema table]}]
-  (or (t2/select-one :model/Table :db_id (:id database) :schema schema :name table :active true)
-      (throw (ex-info "Managed PostgreSQL table was not discovered."
-                      {:status-code 409 :schema schema :table table}))))
+  (if-let [record (t2/select-one :model/Table :db_id (:id database) :schema schema :name table :active true)]
+    record
+    (throw (ex-info "Managed PostgreSQL table was not discovered."
+                    {:status-code 409 :schema schema :table table}))))
 
 (defn- field-record
   [table name]
-  (or (t2/select-one :model/Field :table_id (:id table) :name name :active true)
-      (throw (ex-info "Managed PostgreSQL column was not discovered."
-                      {:status-code 409 :table (:name table) :column name}))))
+  (if-let [field (t2/select-one :model/Field :table_id (:id table) :name name :active true)]
+    field
+    (throw (ex-info "Managed PostgreSQL column was not discovered."
+                    {:status-code 409 :table (:name table) :column name}))))
 
 (defn sync!
   "Synchronously discover declared managed tables and apply their stable metadata."
@@ -221,12 +234,12 @@
                       {:status-code 422
                        :error (dissoc checked :valid)})))
     (let [database (save! (assoc data :details checked))
-          synced   (when (seq tables) (sync! database tables))]
-      (cond-> {:databaseId (str (u/the-id database))
-               :name (:name database)
-               :path (:path data)
-               :sourceKind "managed"}
-        synced (assoc :tables (:tables synced))))))
+          synced   (if (empty? tables) {:tables []} (sync! database tables))]
+      {:databaseId (str (u/the-id database))
+       :name (:name database)
+       :path (:path data)
+       :sourceKind "managed"
+       :tables (:tables synced)})))
 
 (defn remove!
   "Remove the current project's managed source binding and warehouse record idempotently."

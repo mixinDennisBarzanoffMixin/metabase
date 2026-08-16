@@ -31,9 +31,10 @@
       (throw (ex-info "No synced table exists for this Veritly project."
                       {:status-code 409})))
     (if table-id
-      (or (some #(when (= (:id %) table-id) %) available)
-          (throw (ex-info "The selected table is outside the current Veritly project or is inactive."
-                          {:status-code 404 :table-id table-id})))
+      (if-let [table (some #(when (= (:id %) table-id) %) available)]
+        table
+        (throw (ex-info "The selected table is outside the current Veritly project or is inactive."
+                        {:status-code 404 :table-id table-id})))
       (if (= 1 (count available))
         (first available)
         (throw (ex-info "tableId is required when a Veritly project has multiple synced tables."

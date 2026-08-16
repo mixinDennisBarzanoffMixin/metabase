@@ -92,9 +92,13 @@
   [database]
   (let [limit  (driver.settings/jdbc-data-warehouse-max-connection-pool-size)
         custom (get-in database [:settings :connection-pool-size])]
-    (if (and (int? custom) (pos? custom) (<= custom limit))
-      custom
-      limit)))
+    (when (and custom
+               (not (and (int? custom) (pos? custom) (<= custom limit))))
+      (throw (ex-info "Database connection-pool-size is invalid."
+                      {:database-id (:id database)
+                       :connection-pool-size custom
+                       :maximum limit})))
+    (if custom custom limit)))
 
 (defmethod data-warehouse-connection-pool-properties :default
   [driver database]
