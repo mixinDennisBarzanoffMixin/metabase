@@ -51,6 +51,9 @@
                                         :filePath "Project Data.source"
                                         :details {:host "data" :port 5432 :dbname "first"}
                                         :tables []})
+                _      (t2/update! :model/Database
+                                   (parse-long (:databaseId first))
+                                   {:settings {:connection-pool-size 3}})
                 second (source/upsert! {:name "Project Data"
                                         :filePath "Project Data.source"
                                         :details {:host "data" :port 5432 :dbname "second"}
@@ -59,9 +62,10 @@
             (is (= 1 (t2/count :veritly_project_database
                                :project_id "managed-upsert-test"
                                :source_kind "managed")))
-            (is (= 3 (get-in (t2/select-one :model/Database
-                                            :id (parse-long (:databaseId first)))
-                             [:settings :connection-pool-size]))))
+            (let [id (parse-long (:databaseId first))]
+              (is (= "veritly" (t2/select-one-fn :provider_name :model/Database :id id)))
+              (is (not (contains? (t2/select-one-fn :settings :model/Database :id id)
+                                  :connection-pool-size)))))
           (is (= {:ok true} (source/remove!)))
           (is (zero? (t2/count :veritly_project_database
                                :project_id "managed-upsert-test")))))

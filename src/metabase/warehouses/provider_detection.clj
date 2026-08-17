@@ -18,7 +18,9 @@
   "Detect provider from a database entity by examining its details and engine. Looks for common host names to identify
   common database providers, like supabase."
   [{:keys [engine] :as database}]
-  (when-let [host (some-> database :details :host)]
-    (let [providers (:providers (driver/extra-info engine))]
-      (when (seq providers)
-        (detect-provider host providers)))))
+  (if (= (:provider_name database) "veritly")
+    "veritly"
+    (when-let [host (some-> database :details :host)]
+      (let [providers (:providers (driver/extra-info engine))]
+        (when (seq providers)
+          (detect-provider host providers))))))

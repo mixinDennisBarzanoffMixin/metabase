@@ -90,15 +90,10 @@
 
 (defn- pool-size
   [database]
-  (let [limit  (driver.settings/jdbc-data-warehouse-max-connection-pool-size)
-        custom (get-in database [:settings :connection-pool-size])]
-    (when (and custom
-               (not (and (int? custom) (pos? custom) (<= custom limit))))
-      (throw (ex-info "Database connection-pool-size is invalid."
-                      {:database-id (:id database)
-                       :connection-pool-size custom
-                       :maximum limit})))
-    (if custom custom limit)))
+  (let [limit (driver.settings/jdbc-data-warehouse-max-connection-pool-size)]
+    (if (= (:provider-name (driver.u/ensure-lib-database database)) "veritly")
+      (min limit 3)
+      limit)))
 
 (defmethod data-warehouse-connection-pool-properties :default
   [driver database]
@@ -165,12 +160,12 @@
    ;; stack trace, but clj-memory-meter reports ~800 bytes for a fresh Exception created at the REPL (which presumably
    ;; has a smaller-than-average stack).
    "debugUnreturnedConnectionStackTraces" (u/prog1 (driver.settings/jdbc-data-warehouse-debug-unreturned-connection-stack-traces)
-                                                   (when (and <> (not (driver-api/level-enabled? 'com.mchange Level/INFO)))
-                                                     (log/warn "jdbc-data-warehouse-debug-unreturned-connection-stack-traces"
-                                                               "is enabled, but INFO logging is not enabled for the"
-                                                               "com.mchange namespace. You must raise the log level for"
-                                                               "com.mchange to INFO via a custom Log4j config in order to"
-                                                               "see stacktraces in the logs.")))
+                                            (when (and <> (not (driver-api/level-enabled? 'com.mchange Level/INFO)))
+                                              (log/warn "jdbc-data-warehouse-debug-unreturned-connection-stack-traces"
+                                                        "is enabled, but INFO logging is not enabled for the"
+                                                        "com.mchange namespace. You must raise the log level for"
+                                                        "com.mchange to INFO via a custom Log4j config in order to"
+                                                        "see stacktraces in the logs.")))
    ;; Set the data source name so that the c3p0 JMX bean has a useful identifier, which incorporates the DB ID, driver,
    ;; and name from the details
    "dataSourceName"                       (format "db-%d-%s-%s"
@@ -507,7 +502,7 @@
             (get-canonical-pool cache-key details-hash false)
             ;; create a new pool and add it to our cache, then return it
             (u/prog1 (create-pool! db)
-                     (set-canonical-pool! cache-key details-hash <>)))))))
+              (set-canonical-pool! cache-key details-hash <>)))))))
 
     ;; already a `clojure.java.jdbc` spec map
     (map? db-or-id-or-spec)

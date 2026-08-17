@@ -47,19 +47,27 @@
 (use-fixtures :once ssh-test/do-with-mock-servers)
 
 (deftest managed-source-pool-is-bounded-test
-  (mt/with-temp [:model/Database database {:engine   :h2
-                                           :details  {:db "mem:managed_pool_test"}
-                                           :settings {:connection-pool-size 3}}]
-    (is (= 3 (get (sql-jdbc.conn/data-warehouse-connection-pool-properties :h2 database)
-                  "maxPoolSize")))))
+  (mt/with-temp [:model/Database database {:engine        :h2
+                                           :details       {:db "mem:managed_pool_test"}
+                                           :provider_name "veritly"}]
+    (with-redefs [driver.settings/jdbc-data-warehouse-max-connection-pool-size (constantly 15)]
+      (is (= 3 (get (sql-jdbc.conn/data-warehouse-connection-pool-properties :h2 database)
+                    "maxPoolSize"))))))
 
-(deftest invalid-managed-source-pool-is-rejected-test
-  (mt/with-temp [:model/Database database {:engine   :h2
-                                           :details  {:db "mem:invalid_managed_pool_test"}
-                                           :settings {:connection-pool-size 0}}]
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo
-                          #"connection-pool-size is invalid"
-                          (sql-jdbc.conn/data-warehouse-connection-pool-properties :h2 database)))))
+(deftest managed-source-pool-respects-global-bound-test
+  (mt/with-temp [:model/Database database {:engine        :h2
+                                           :details       {:db "mem:managed_global_pool_test"}
+                                           :provider_name "veritly"}]
+    (with-redefs [driver.settings/jdbc-data-warehouse-max-connection-pool-size (constantly 2)]
+      (is (= 2 (get (sql-jdbc.conn/data-warehouse-connection-pool-properties :h2 database)
+                    "maxPoolSize"))))))
+
+(deftest regular-source-pool-uses-global-bound-test
+  (mt/with-temp [:model/Database database {:engine  :h2
+                                           :details {:db "mem:regular_pool_test"}}]
+    (with-redefs [driver.settings/jdbc-data-warehouse-max-connection-pool-size (constantly 15)]
+      (is (= 15 (get (sql-jdbc.conn/data-warehouse-connection-pool-properties :h2 database)
+                     "maxPoolSize"))))))
 
 ;;; this is mostly testing [[h2/*allow-testing-h2-connections*]] so it's ok to hardcode driver names below.
 #_{:clj-kondo/ignore [:metabase/disallow-hardcoded-driver-names-in-tests]}

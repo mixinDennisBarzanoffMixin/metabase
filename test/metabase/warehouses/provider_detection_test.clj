@@ -19,6 +19,9 @@ providers:
       (is (= expected (#'provider-detection/detect-provider host providers))))))
 
 (deftest detect-provider-from-database-test
+  (testing "Veritly-managed databases retain their service-owned provider"
+    (let [database {:details {:host "data-pooler-ro"} :engine :postgres :provider_name "veritly"}]
+      (is (= "veritly" (provider-detection/detect-provider-from-database database)))))
   (testing "database with unsupported engine returns nil"
     (let [database {:details {:host "czrs8kj4isg7.us-east-1.rds.amazonaws.com"} :engine :mysql}]
       (is (nil? (provider-detection/detect-provider-from-database database)))))

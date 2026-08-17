@@ -195,7 +195,7 @@
                      :is_full_sync        false
                      :is_on_demand        true
                      :auto_run_queries    true
-                     :settings            (assoc (:settings database) :connection-pool-size 3)
+                     :settings            (dissoc (:settings database) :connection-pool-size)
                      :provider_name       "veritly"})
         (projects/bind-database! (:id database)
                                  {:source-kind "managed" :file-path path})
@@ -214,7 +214,6 @@
                        :is_full_sync        false
                        :is_on_demand        true
                        :auto_run_queries    true
-                       :settings            {:connection-pool-size 3}
                        :provider_name       "veritly"
                        :creator_id          config/internal-mb-user-id
                        :initial_sync_status "complete"})]
