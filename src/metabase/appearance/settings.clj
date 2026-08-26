@@ -131,12 +131,12 @@ To change the chart colors:
 ```")
 
 (defsetting application-font
-  (deferred-tru "Replace “Lato” as the font family.")
+  (deferred-tru "Choose the application font family.")
   :encryption :no
   :visibility :public
   :export?    true
   :type       :string
-  :default    "Lato"
+  :default    "Inter"
   :feature    :whitelabel
   :audit      :getter
   :setter     (fn [new-value]

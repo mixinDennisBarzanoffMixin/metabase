@@ -7,6 +7,11 @@
 
 (use-fixtures :once (fixtures/initialize :db))
 
+(deftest application-font-test
+  (mt/discard-setting-changes [application-font]
+    (mt/with-premium-features #{:whitelabel}
+      (is (= "Inter" (appearance.settings/application-font))))))
+
 (deftest help-link-setting-test
   (mt/discard-setting-changes [help-link]
     (mt/with-premium-features #{:whitelabel}
