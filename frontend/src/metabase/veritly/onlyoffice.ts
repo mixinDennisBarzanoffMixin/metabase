@@ -11,14 +11,14 @@ function text(value: unknown, key: string) {
   if (typeof value === "string" && value.length > 0) {
     return value;
   }
-  throw new Error(`ONLYOFFICE chart ${key} missing`);
+  throw new Error(`Spreadsheet chart ${key} missing`);
 }
 
 function num(value: unknown, key: string) {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
   }
-  throw new Error(`ONLYOFFICE chart ${key} missing`);
+  throw new Error(`Spreadsheet chart ${key} missing`);
 }
 
 function base() {
@@ -66,12 +66,12 @@ async function get(path: string, signal?: AbortSignal): Promise<Body> {
   if (plain(body)) {
     return body;
   }
-  throw new Error("ONLYOFFICE response is not an object");
+  throw new Error("Document service response is not an object");
 }
 
 function ref(raw: unknown): ChartRef {
   if (!plain(raw) || raw.provider !== "onlyoffice") {
-    throw new Error("ONLYOFFICE chart is not an object");
+    throw new Error("Spreadsheet chart is not an object");
   }
   const file = text(raw.fileName, "fileName");
   const source = text(raw.sourceName, "sourceName");
@@ -91,7 +91,7 @@ function ref(raw: unknown): ChartRef {
 export async function listOnlyOfficeCharts(signal?: AbortSignal) {
   const body = await get("/charts", signal);
   if (!Array.isArray(body.charts)) {
-    throw new Error("ONLYOFFICE charts response missing charts");
+    throw new Error("Spreadsheet charts response is missing charts");
   }
   const charts = body.charts.map(ref);
   console.info("[veritly-chart:metabase]", "catalog loaded", {
@@ -111,11 +111,11 @@ export async function getOnlyOfficeChart(ref: ChartRef, signal?: AbortSignal) {
     signal,
   );
   if (!plain(body.source)) {
-    throw new Error("ONLYOFFICE chart response missing source");
+    throw new Error("Spreadsheet chart response is missing its source");
   }
   const item = refFromSource(body.source);
   if (!plain(body.source.spec) || body.source.spec.version !== 1) {
-    throw new Error("ONLYOFFICE chart source is malformed");
+    throw new Error("Spreadsheet chart source is malformed");
   }
   const spec = body.source.spec;
   if (
@@ -123,7 +123,7 @@ export async function getOnlyOfficeChart(ref: ChartRef, signal?: AbortSignal) {
     typeof spec.title !== "string" ||
     !plain(spec.option)
   ) {
-    throw new Error("ONLYOFFICE chart spec is malformed");
+    throw new Error("Spreadsheet chart specification is malformed");
   }
   const source = {
     ...item,
@@ -193,7 +193,7 @@ async function stream(
   while (!signal.aborted) {
     const item = await reader.read();
     if (item.done) {
-      throw new Error("ONLYOFFICE chart event stream closed");
+      throw new Error("Spreadsheet chart event stream closed");
     }
     buffer += decoder.decode(item.value, { stream: true });
     const frames = buffer.split(/\r?\n\r?\n/);
